@@ -36,6 +36,12 @@
     button:disabled { opacity: .5; cursor: wait; }
     #go { flex: 1; }
     #ice { width: 100%; margin-top: 8px; }
+    .mode { display: flex; align-items: center; gap: 0; margin-top: 10px; font-size: 12px; font-weight: 500; }
+    .mode span { margin-right: auto; }
+    .mode button { font-size: 12px; padding: 5px 8px; background: var(--paper); color: var(--ink); border-width: 1px; }
+    .mode button + button { border-left: 0; }
+    .mode button.on { background: var(--ink); color: var(--paper); }
+    .leaflet-marker-draggable.pin { cursor: grab; }
     .kicker { margin: 14px 0 6px; padding-top: 6px; border-top: 1px solid var(--ink); font-size: 12px; font-weight: 700; }
     .stats { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 16px; }
     .stat b { display: block; font: 700 30px/1 var(--narrow); letter-spacing: -0.5px; }
@@ -76,16 +82,20 @@
 <body>
   <header>
     <h1>Martian<br>Map</h1>
-    <p>Safest routes between landing sites<br>Arcadia region of Mars, 37.5°N to 41°N, 171°W to 163°W</p>
+    <p>Safest routes from landing sites<br><span id="where"></span></p>
   </header>
   <main>
     <div id="map"></div>
     <aside>
       <section>
         <h2>Route</h2>
-        <label for="start">From</label><select id="start"></select>
-        <label for="end">To</label><select id="end"></select>
-        <p class="hint">Or click the map twice: first the start, then the end.</p>
+        <label for="region">Region</label><select id="region"></select>
+        <label for="start">From (A)</label><select id="start"></select>
+        <label for="end">To (B)</label><select id="end"></select>
+        <div class="mode" role="group" aria-label="What a map click places">
+          <span>Map click places</span><button id="setA" type="button">Start A</button><button id="setB" type="button">Destination B</button>
+        </div>
+        <p class="hint">Pick a landing site, then click the map to drop your destination. Drag either pin to move it; the route updates.</p>
         <label for="max">Steepest slope allowed <output id="maxv">15°</output></label>
         <input id="max" type="range" value="15" min="5" max="30" />
         <div id="seasonRow"><label for="season">Season</label><select id="season"></select></div>
@@ -107,8 +117,8 @@
   <footer>
     Elevation from the <a href="https://astrogeology.usgs.gov/search/map/mars_mgs_mola_dem_463m">USGS MOLA DEM 463 m</a>.
     Map tiles from <a href="https://trek.nasa.gov/mars/">NASA Mars Trek</a> (MOLA relief, and the CTX mosaic by the Caltech Murray Lab).
-    Site positions from <a href="https://www.uahirise.org">HiRISE</a>, University of Arizona.
-    Place names from the <a href="https://planetarynames.wr.usgs.gov/Feature/1821">USGS Gazetteer of Planetary Nomenclature</a>.
+    Site positions from <a href="https://www.uahirise.org">HiRISE</a>, University of Arizona, and NASA/JPL (rover landing sites).
+    Place names from the <a href="https://planetarynames.wr.usgs.gov/">USGS Gazetteer of Planetary Nomenclature</a>.
   </footer>
   <script type="module" src="/src/main.js"></script>
 </body>

@@ -10,9 +10,13 @@ export default {
       icons: [{ src: 'icon.svg', sizes: 'any', type: 'image/svg+xml', purpose: 'any' }],
     },
     workbox: {
-      globPatterns: ['**/*.{js,css,html,json,bin,svg,woff2}'], // app + elevation data work offline
+      globPatterns: ['**/*.{js,css,html,json,svg,woff2}'], // the app works offline
       maximumFileSizeToCacheInBytes: 5e6,
-      runtimeCaching: [{ // map tiles you have viewed stay available offline
+      runtimeCaching: [{ // elevation data: each region is cached the first time you open it
+        urlPattern: ({ url }) => url.pathname.endsWith('.bin'),
+        handler: 'StaleWhileRevalidate',
+        options: { cacheName: 'region-data', expiration: { maxEntries: 60 } },
+      }, { // map tiles you have viewed stay available offline
         urlPattern: /^https:\/\/(trek\.nasa\.gov|astro\.arcgis\.com)\//,
         handler: 'CacheFirst',
         options: { cacheName: 'mars-tiles', expiration: { maxEntries: 3000 } },

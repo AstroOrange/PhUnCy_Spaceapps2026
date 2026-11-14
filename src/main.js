@@ -7,6 +7,7 @@ import '@fontsource/archivo-narrow/latin-700.css';
 import Chart from 'chart.js/auto';
 import { haversine, cellLatLon, latLonCell } from './geo.js';
 import { hazardGrids } from './hazards.js';
+import { parseHash, formatHash } from './link.js';
 
 const $ = id => document.getElementById(id);
 const msg = t => ($('summary').innerHTML = `<p class="note">${t}</p>`);
@@ -27,6 +28,7 @@ const ctx = L.tileLayer(
 // Map symbols (cartographic, not glowing dots)
 const svg = body => `<svg width="12" height="12" viewBox="0 0 12 12">${body}</svg>`;
 const SYM = {
+  landing: svg('<circle cx="6" cy="6" r="4.6" fill="#000" stroke="#fff" stroke-width="1"/><circle cx="6" cy="6" r="1.7" fill="#fff"/>'),
   site: svg('<rect x="2" y="2" width="8" height="8" fill="#000" stroke="#fff" stroke-width="1"/>'),
   poi: svg('<path d="M6 1.5 10.5 6 6 10.5 1.5 6Z" fill="#fff" stroke="#000" stroke-width="1.5"/>'),
   ref: svg('<path d="M6 1v10M1 6h10" stroke="#000" stroke-width="1.5"/>'),
@@ -39,83 +41,144 @@ const SYM = {
 };
 const icon = (html, className = 'mk', size = 12) => L.divIcon({ html, className, iconSize: [size, size] });
 
-const sites = await (await fetch('sites.json')).json();
-const named = sites.filter(s => s.lat != null && s.lon != null);
-let n = 0, p = 0;
-for (const s of named) s.code = s.ref ? '' : s.poi ? `P${++p}` : `S${++n}`;
+const regions = await (await fetch('data/regions.json')).json();
+const sites = (await (await fetch('sites.json')).json()).filter(s => s.lat != null && s.lon != null);
+const kind = s => (s.ref ? 'ref' : s.landing ? 'landing' : s.poi ? 'poi' : 'site');
+for (const r of regions) { // codes per region: S candidate sites, L rover landing sites, P points of interest
+  const count = {};
+  for (const s of sites.filter(s => s.region === r.id))
+    s.code = s.ref ? '' : `${{ landing: 'L', poi: 'P', site: 'S' }[kind(s)]}${(count[kind(s)] = (count[kind(s)] || 0) + 1)}`;
+}
 
-const map = L.map('map', { crs: L.CRS.EPSG4326, layers: [mola] }).setView([35.66, -174.98], 6);
+const map = L.map('map', { crs: L.CRS.EPSG4326, layers: [mola] }).setView([20, 0], 2);
 map.attributionControl.setPrefix('<a href="https://leafletjs.com">Leaflet</a>');
 const layerControl = L.control.layers({ 'Relief (MOLA)': mola, 'Imagery (CTX)': ctx }).addTo(map);
-for (const s of named)
-  L.marker([s.lat, s.lon], { icon: icon(SYM[s.ref ? 'ref' : s.poi ? 'poi' : 'site'] + `<b>${s.code || s.name.split(',')[0]}</b>`) })
+for (const s of sites)
+  L.marker([s.lat, s.lon], { icon: icon(SYM[kind(s)] + `<b>${s.code || s.name.split(',')[0]}</b>`) })
     .bindPopup(`<b>${s.code} ${s.name}</b><br>${s.lat}°, ${s.lon}°<br><small>${s.source}</small>`).addTo(map);
 const legend = L.control({ position: 'bottomleft' });
-legend.onAdd = () => Object.assign(L.DomUtil.create('div', 'legend'), { innerHTML: [
-  [SYM.site, 'Candidate landing site (S)'], [SYM.poi, 'Point of interest (P)'],
-  [SYM.route, 'Safest route'], [SYM.hazard, 'Steepest point on route'], [SYM.extent, 'Elevation data extent'],
-  [SYM.ice, 'Ice likely within 1 m (SWIM)'], [SYM.loose, 'Loose or dusty ground (TES)'], [SYM.crater, 'Crater rim (Robbins catalog)'],
-].map(([s, t]) => `<span class="sym">${s}</span>${t}`).join('<br>') });
+legend.onAdd = () => L.DomUtil.create('div', 'legend');
 legend.addTo(map);
+function drawLegend(here) {
+  const has = k => here.some(s => kind(s) === k);
+  legend.getContainer().innerHTML = [
+    has('landing') && [SYM.landing, 'Rover landing site (L)'], has('site') && [SYM.site, 'Candidate landing site (S)'],
+    has('poi') && [SYM.poi, 'Point of interest (P)'], has('ref') && [SYM.ref, 'Named feature'],
+    [SYM.route, 'Safest route'], [SYM.hazard, 'Steepest point on route'], [SYM.extent, 'Elevation data extent'],
+    layers.ice && [SYM.ice, 'Ice likely within 1 m (SWIM)'], hazards.loose && [SYM.loose, 'Loose or dusty ground (TES)'],
+    hazards.crater && [SYM.crater, 'Crater rim (Robbins catalog)'],
+  ].filter(Boolean).map(([s, t]) => `<span class="sym">${s}</span>${t}`).join('<br>');
+}
 
-// Elevation grid from scripts/prep_dem.py
-const ICE_MIN = 0.25; // SWIM ice-consistency score treated as "ice likely" (strongest signal in this region)
-const meta = await fetch('data/dem.json').then(r => r.json()).catch(() => null);
-const bin = f => fetch(`data/${f}.bin`).then(r => r.arrayBuffer()).then(b => new Float32Array(b));
-let h, s, worker, layers = {}, hazards = {};
-if (meta) {
-  [h, s] = await Promise.all([bin('dem'), bin('slope')]);
-  layers = Object.fromEntries(await Promise.all((meta.layers || []).map(async n => [n, await bin(n)])));
-  hazards = hazardGrids(layers);
-  worker = new Worker(new URL('./worker.js', import.meta.url), { type: 'module' });
-  worker.postMessage({ h, s, meta, layers });
-  const [a, b, c, d] = meta.bounds;
-  map.fitBounds(L.rectangle([[a, c], [b, d]], { color: '#000', weight: 1, opacity: 0.8, dashArray: '4 4', fill: false, interactive: false }).addTo(map).getBounds());
-  // Data layers drawn from the grid, toggled from the layer menu
-  const overlay = (label, grid, rgba) => {
-    const cv = Object.assign(document.createElement('canvas'), { width: meta.cols, height: meta.rows }), g = cv.getContext('2d');
-    const img = g.createImageData(meta.cols, meta.rows);
-    grid.forEach((v, i) => img.data.set(rgba(v), i * 4));
-    g.putImageData(img, 0, 0);
-    layerControl.addOverlay(L.imageOverlay(cv.toDataURL(), [[a, c], [b, d]]), label);
-  };
-  if (layers.ice) overlay('Ice likely within 1 m (SWIM)', layers.ice, v => (v > 0 ? [47, 111, 214, Math.min(1, v / 0.35) * 190] : [0, 0, 0, 0]));
-  if (hazards.loose) overlay('Loose or dusty ground (TES)', hazards.loose, v => [176, 104, 40, v * 170]);
-  if (hazards.crater) overlay('Crater rims (Robbins catalog)', hazards.crater, v => [0, 0, 0, v > 0.3 ? v * 200 : 0]);
-} else msg('No elevation data yet: run scripts/prep_dem.py (see README).');
-$('ice').hidden = !layers.ice;
-// Seasonal weather table from scripts/fetch_mcd.py (Mars Climate Database)
-const climate = await fetch('data/climate.json').then(r => r.json()).catch(() => null);
+const ICE_MIN = 0.25; // SWIM ice-consistency score treated as "ice likely" (strongest signal in Arcadia)
 const SEASONS = ['northern spring', 'northern summer', 'northern autumn', 'northern winter'];
-$('seasonRow').hidden = !climate;
-if (climate) $('season').innerHTML = climate.rows.map((r, i) =>
-  `<option value="${i}">Month ${i + 1} (Ls ${r.ls}°), ${SEASONS[Math.floor(r.ls / 90)]}${r.dust_storm != null ? ', dust storm season' : ''}</option>`).join('');
-$('looseRow').hidden = !hazards.loose;
-$('craterRow').hidden = !hazards.crater;
+const worker = new Worker(new URL('./worker.js', import.meta.url), { type: 'module' });
+const json = url => fetch(url).then(r => (r.ok ? r.json() : null)).catch(() => null);
+const fmtLat = v => `${Math.abs(v)}°${v < 0 ? 'S' : 'N'}`, fmtLon = v => `${Math.abs(v)}°${v < 0 ? 'W' : 'E'}`;
+let region, here = [], meta, h, s, layers = {}, hazards = {}, climate, regionLayers = [], loading = 0;
+
+// Load one region's grids (from scripts/prep_dem.py) and weather (from scripts/fetch_mcd.py) from public/data/<id>/
+async function loadRegion(id) {
+  const token = ++loading;
+  region = regions.find(r => r.id === id) || regions[0];
+  $('region').value = region.id;
+  clearRoute(); pins.forEach(p => p?.remove()); pins.length = pts.length = 0; setMode(0);
+  regionLayers.forEach(l => { l.remove(); layerControl.removeLayer(l); });
+  regionLayers = [];
+  meta = h = s = climate = null; layers = {}; hazards = {};
+  const [a, b, c, d] = region.bounds;
+  $('where').innerHTML = `${region.about}<br>${region.name}, ${fmtLat(a)} to ${fmtLat(b)}, ${fmtLon(c)} to ${fmtLon(d)}`;
+  here = sites.filter(x => x.region === region.id);
+  ['start', 'end'].forEach(id => ($(id).innerHTML = `<option value="">${id === 'start' ? 'Choose a landing site, or click the map' : 'Click the map to drop a pin, or choose'}</option>`
+    + here.map((x, i) => `<option value="${i}">${x.code ? x.code + ' ' : ''}${x.name}</option>`).join('')));
+  const box = L.rectangle([[a, c], [b, d]], { color: '#000', weight: 1, opacity: 0.8, dashArray: '4 4', fill: false, interactive: false }).addTo(map);
+  regionLayers.push(box);
+  map.fitBounds(box.getBounds());
+  $('go').disabled = $('v3d').disabled = $('ice').disabled = true;
+  msg('Loading elevation data.');
+
+  const m = await json(`data/${region.id}/dem.json`);
+  const bin = f => fetch(`data/${region.id}/${f}.bin`).then(r => r.arrayBuffer()).then(x => new Float32Array(x));
+  const grids = m && await Promise.all([bin('dem'), bin('slope'), ...(m.layers || []).map(bin)]);
+  const clim = await json(`data/${region.id}/climate.json`);
+  if (token !== loading) return; // the user switched region again while this was loading
+  climate = clim;
+  if (m) {
+    meta = m; [h, s] = grids;
+    layers = Object.fromEntries((m.layers || []).map((n, i) => [n, grids[i + 2]]));
+    hazards = hazardGrids(layers);
+    worker.postMessage({ h, s, meta, layers });
+    // Data layers drawn from the grid, toggled from the layer menu
+    const [a, b, c, d] = meta.bounds;
+    const overlay = (label, grid, rgba) => {
+      const cv = Object.assign(document.createElement('canvas'), { width: meta.cols, height: meta.rows }), g = cv.getContext('2d');
+      const img = g.createImageData(meta.cols, meta.rows);
+      grid.forEach((v, i) => img.data.set(rgba(v), i * 4));
+      g.putImageData(img, 0, 0);
+      const layer = L.imageOverlay(cv.toDataURL(), [[a, c], [b, d]]);
+      layerControl.addOverlay(layer, label);
+      regionLayers.push(layer);
+    };
+    if (layers.ice) overlay('Ice likely within 1 m (SWIM)', layers.ice, v => (v > 0 ? [47, 111, 214, Math.min(1, v / 0.35) * 190] : [0, 0, 0, 0]));
+    if (hazards.loose) overlay('Loose or dusty ground (TES)', hazards.loose, v => [176, 104, 40, v * 170]);
+    if (hazards.crater) overlay('Crater rims (Robbins catalog)', hazards.crater, v => [0, 0, 0, v > 0.3 ? v * 200 : 0]);
+    $('go').disabled = $('v3d').disabled = $('ice').disabled = false;
+    msg('No route yet. Pick a start, then click the map to drop your destination.');
+  } else msg(`Elevation data for ${region.name} hasn't been prepared yet: run scripts/prep_dem.py for this region (see README). The sites are still shown on the map.`);
+  $('ice').hidden = !layers.ice;
+  $('looseRow').hidden = !hazards.loose;
+  $('craterRow').hidden = !hazards.crater;
+  $('seasonRow').hidden = !climate;
+  if (climate) $('season').innerHTML = climate.rows.map((r, i) =>
+    `<option value="${i}">Month ${i + 1} (Ls ${r.ls}°), ${SEASONS[Math.floor(r.ls / 90)]}${r.dust_storm != null ? ', dust storm season' : ''}</option>`).join('');
+  drawLegend(here);
+}
+
+$('region').innerHTML = regions.map(r => `<option value="${r.id}">${r.name} (${r.about})</option>`).join('');
+$('region').onchange = e => { history.replaceState(null, '', formatHash(e.target.value)); loadRegion(e.target.value); };
 $('crater').oninput = e => ($('craterv').textContent = `×${e.target.value}`);
 $('loose').oninput = e => ($('loosev').textContent = `×${e.target.value}`);
 $('max').oninput = e => ($('maxv').textContent = `${e.target.value}°`);
 
-// Start (A) / end (B)
+// Start (A) and destination (B): choose from the lists, click the map, or drag the pins
 const pts = [], pins = [];
-const setPt = (k, ll) => { pts[k] = ll; pins[k]?.remove(); pins[k] = L.marker(ll, { icon: icon(k ? 'B' : 'A', `pin ${k ? 'b' : 'a'}`, 18), zIndexOffset: 1000 }).addTo(map); };
-['start', 'end'].forEach((id, k) => {
-  $(id).innerHTML = '<option value="">Choose a site, or click the map</option>' + named.map((s, i) => `<option value="${i}">${s.code} ${s.name}</option>`).join('');
-  $(id).onchange = e => e.target.value && setPt(k, [named[e.target.value].lat, named[e.target.value].lon]);
+function setPt(k, ll) {
+  pts[k] = ll;
+  pins[k]?.remove();
+  pins[k] = L.marker(ll, { icon: icon(k ? 'B' : 'A', `pin ${k ? 'b' : 'a'}`, 18), zIndexOffset: 1000, draggable: true, title: 'Drag to move' })
+    .on('dragend', e => { const p = e.target.getLatLng(); pts[k] = [p.lat, p.lng]; $(k ? 'end' : 'start').value = ''; autoRoute(); })
+    .addTo(map);
+}
+const autoRoute = () => pts[0] && pts[1] && meta && run(false);
+['start', 'end'].forEach((id, k) => ($(id).onchange = e => {
+  if (!e.target.value) return;
+  const x = here[e.target.value];
+  setPt(k, [x.lat, x.lon]);
+  if (!k) setMode(1);
+  autoRoute();
+}));
+let mode = 0; // which pin a map click places: 0 = start A, 1 = destination B
+function setMode(k) { mode = k; $('setA').classList.toggle('on', !k); $('setB').classList.toggle('on', !!k); }
+$('setA').onclick = () => setMode(0);
+$('setB').onclick = () => setMode(1);
+map.on('click', e => {
+  $(mode ? 'end' : 'start').value = '';
+  setPt(mode, [e.latlng.lat, e.latlng.lng]);
+  if (!mode) setMode(1);
+  autoRoute();
 });
-let next = 0;
-map.on('click', e => { $(next ? 'end' : 'start').value = ''; setPt(next, [e.latlng.lat, e.latlng.lng]); next ^= 1; });
 
 function run(toIce) {
-  if (!worker) return;
+  if (!meta) return;
   if (!pts[0] || (!toIce && !pts[1])) return msg(toIce ? 'Pick a start first.' : 'Pick a start and an end first.');
   const cells = pts.slice(0, toIce ? 1 : 2).map(p => latLonCell(meta, ...p));
   if (cells.flat().some((v, i) => v < 0 || v >= (i % 2 ? meta.cols : meta.rows)))
-    return msg('Points must be inside the dashed elevation data box.');
-  if (!toIce) location.hash = pts.flat().map(v => v.toFixed(4)).join(',');
+    return msg('Both pins must be inside the dashed elevation data box.');
+  history.replaceState(null, '', formatHash(region.id, pts[0], toIce ? null : pts[1]));
   msg(toIce ? 'Searching for the nearest likely ice.' : 'Working out the safest route.');
   $('go').disabled = $('ice').disabled = true;
-  worker.onmessage = e => show(e.data, toIce);
+  const token = loading;
+  worker.onmessage = e => token === loading && show(e.data, toIce);
   worker.postMessage({ start: cells[0], end: toIce ? null : cells[1], iceMin: toIce ? ICE_MIN : null, opts: { maxSlope: +$('max').value }, weights: { loose: +$('loose').value, crater: +$('crater').value } });
 }
 $('go').onclick = () => run(false);
@@ -136,10 +199,15 @@ function weather(w) {
 }
 
 let line, steep, chart, lastPath;
+function clearRoute() {
+  line?.remove(); steep?.remove(); chart?.destroy();
+  line = steep = chart = lastPath = null;
+  $('chartBox').hidden = true;
+}
 function show(path, toIce) {
+  clearRoute();
   lastPath = path;
   $('go').disabled = $('ice').disabled = false;
-  line?.remove(); steep?.remove(); chart?.destroy();
   $('chartBox').hidden = !path;
   if (!path) return msg(toIce ? `No likely ice can be reached while staying under ${$('max').value}°.`
     : `No route stays under ${$('max').value}°. Allow a steeper slope or pick other points.`);
@@ -186,6 +254,8 @@ function show(path, toIce) {
 
 $('v3d').onclick = async () => meta && (await import('./view3d.js')).open3D(h, meta, lastPath);
 
-// Shareable link: #startLat,startLon,endLat,endLon
-const q = location.hash.slice(1).split(',').map(Number);
-if (q.length === 4 && q.every(Number.isFinite)) { setPt(0, q.slice(0, 2)); setPt(1, q.slice(2)); $('go').click(); }
+// Shareable link: #region/startLat,startLon,endLat,endLon
+const link = parseHash(location.hash);
+await loadRegion(link.region || regions[0].id);
+if (link.start) { setPt(0, link.start); setMode(1); }
+if (link.end) { setPt(1, link.end); autoRoute(); }

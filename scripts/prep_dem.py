@@ -1,8 +1,10 @@
 """Crop the MOLA 463 m DEM to a lat/lon box and write web-ready grids.
 
-Usage: python scripts/prep_dem.py LAT_MIN LAT_MAX LON_MIN LON_MAX [--src data/raw/mola.tif] [--out public/data]
-                                 [--layer NAME=PATH ...] [--craters CATALOG.csv(.zip)]
-Longitudes are -180..180 east. Outputs:
+Usage: python scripts/prep_dem.py LAT_MIN LAT_MAX LON_MIN LON_MAX --out public/data/REGION
+                                 [--src data/raw/mola.tif | --src URL] [--layer NAME=PATH ...] [--craters CATALOG.csv(.zip)]
+Longitudes are -180..180 east. --src (and --layer paths) may be http(s) URLs: only the part of the file covering the
+box is downloaded, so the 2 GB global MOLA DEM can be used straight from USGS. A --layer that does not cover the box
+(no data at all) is skipped. Outputs:
   dem.bin    Float32 heights (m), row 0 = north, NaN = no data
   slope.bin  Float32 slope (degrees), NaN = no data
   NAME.bin   Float32, each --layer raster resampled onto the same grid, NaN = no data
@@ -22,24 +24,40 @@ p = argparse.ArgumentParser()
 for a in ('lat_min', 'lat_max', 'lon_min', 'lon_max'):
     p.add_argument(a, type=float)
 p.add_argument('--src', default='data/raw/mola.tif')
-p.add_argument('--out', default='public/data')
+p.add_argument('--out', required=True, help='region folder, e.g. public/data/jezero')
 p.add_argument('--layer', action='append', default=[], metavar='NAME=PATH', help='extra raster to put on the same grid')
 p.add_argument('--craters', help='Robbins & Hynek crater catalog (.csv or .csv.zip)')
 a = p.parse_args()
 
-with rasterio.open(a.src) as src:
+vsi = lambda path: '/vsicurl/' + path if path.startswith(('http://', 'https://')) else path
+with rasterio.open(vsi(a.src)) as src:
     res = src.res[0] / (R_MOLA * np.pi / 180)  # keep native resolution, in degrees
 cols = round((a.lon_max - a.lon_min) / res)
 rows = round((a.lat_max - a.lat_min) / res)
 
+DST_CRS = f'+proj=longlat +R={R_MOLA} +no_defs'
+DST_TRANSFORM = from_bounds(a.lon_min, a.lat_min, a.lon_max, a.lat_max, cols, rows)
+
 def warp(path):
-    """Resample band 1 of any raster onto our lat/lon grid (bilinear), NaN where it has no data."""
-    with rasterio.open(path) as src:
+    """Resample band 1 of any raster onto our lat/lon grid (bilinear), NaN where it has no data.
+    Reads only a window around the box (fast for big or remote files); falls back to the whole band
+    if the window can't be worked out (e.g. a 0..360 raster for a box given in -180..180)."""
+    with rasterio.open(vsi(path)) as src:
         out = np.full((rows, cols), np.nan, np.float32)
-        reproject(rasterio.band(src, 1), out,
-                  dst_transform=from_bounds(a.lon_min, a.lat_min, a.lon_max, a.lat_max, cols, rows),
-                  dst_crs=f'+proj=longlat +R={R_MOLA} +no_defs', dst_nodata=np.nan,
-                  resampling=Resampling.bilinear)
+        kw = dict(dst_transform=DST_TRANSFORM, dst_crs=DST_CRS, dst_nodata=np.nan, resampling=Resampling.bilinear)
+        try:
+            from rasterio.warp import transform_bounds
+            from rasterio.windows import from_bounds as window_from, Window
+            win = window_from(*transform_bounds(DST_CRS, src.crs, a.lon_min, a.lat_min, a.lon_max, a.lat_max), src.transform)
+            win = win.round_offsets('floor').round_lengths('ceil')
+            win = Window(win.col_off - 4, win.row_off - 4, win.width + 8, win.height + 8)  # margin for bilinear
+            win = win.intersection(Window(0, 0, src.width, src.height))
+            data = src.read(1, window=win, out_dtype=np.float32)
+            if src.nodata is not None:
+                data[data == src.nodata] = np.nan
+            reproject(data, out, src_transform=src.window_transform(win), src_crs=src.crs, src_nodata=np.nan, **kw)
+        except Exception:  # rasterio.errors.WindowError and friends: no overlap in the source's own coordinates
+            reproject(rasterio.band(src, 1), out, **kw)
         return out * src.scales[0] + src.offsets[0]
 
 dem = warp(a.src)
@@ -57,6 +75,9 @@ names = []
 for spec in a.layer:
     name, path = spec.split('=', 1)
     grid = warp(path).astype(np.float32)
+    if np.isnan(grid).all():
+        print(f'{name}: no data inside this box, skipped')
+        continue
     grid.tofile(f'{a.out}/{name}.bin')
     names.append(name)
     print(f'{name}: {np.isnan(grid).mean():.1%} no data, range {np.nanmin(grid):.2f}..{np.nanmax(grid):.2f}')

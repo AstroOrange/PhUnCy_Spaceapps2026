@@ -1,6 +1,6 @@
 """Fetch a seasonal weather table for the region centre from the Mars Climate Database v6.2 web interface (LMD).
 
-Usage: python scripts/fetch_mcd.py LAT LON_EAST_0_360 [--out public/data/climate.json]
+Usage: python scripts/fetch_mcd.py LAT LON_EAST_0_360 --out public/data/REGION/climate.json
 One row per Mars month (Ls 0, 30, ... 330): dust optical depth (average year and dust-storm scenario),
 surface temperature at 13:00 and 04:00 local time, and wind speed 10 m above the ground at 13:00.
 """
@@ -10,7 +10,7 @@ URL = 'https://www-mars.lmd.jussieu.fr/mcd_python/cgi-bin/mcdcgi.py?'
 p = argparse.ArgumentParser()
 p.add_argument('lat', type=float)
 p.add_argument('lon', type=float)
-p.add_argument('--out', default='public/data/climate.json')
+p.add_argument('--out', required=True, help='e.g. public/data/jezero/climate.json')
 a = p.parse_args()
 
 def query(ls, hour, scenario, *names):

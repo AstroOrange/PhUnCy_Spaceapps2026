@@ -1,0 +1,5 @@
+[
+  { "id": "arcadia", "name": "Arcadia Planitia", "about": "SpaceX Starship candidate sites", "bounds": [37.5, 41.0, -171.0, -163.0] },
+  { "id": "jezero", "name": "Jezero Crater", "about": "Perseverance rover", "bounds": [16.0, 20.5, 75.0, 79.5] },
+  { "id": "gale", "name": "Gale Crater", "about": "Curiosity rover", "bounds": [-7.5, -3.0, 135.5, 140.0] }
+]

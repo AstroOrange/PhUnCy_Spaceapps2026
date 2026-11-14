@@ -60,3 +60,14 @@ test('loose ground: firm and dust-free is 0, powdery or dusty is 1, no data is 0
   expect(loose(105, 0.97)).toBeCloseTo(0.5);
   expect(loose(NaN, NaN)).toBe(0);
 });
+
+import { parseHash, formatHash } from '../src/link.js';
+
+test('share link: region, start and end round-trip; old links open Arcadia', () => {
+  expect(parseHash(formatHash('jezero', [18.4447, 77.4508], [18.5, 77.3])))
+    .toEqual({ region: 'jezero', start: [18.4447, 77.4508], end: [18.5, 77.3] });
+  expect(parseHash('#gale/-4.5895,137.4417')).toEqual({ region: 'gale', start: [-4.5895, 137.4417], end: null });
+  expect(parseHash('#39.09,-170.21,38.637,-169.846').region).toBe('arcadia');
+  expect(parseHash('#gale')).toEqual({ region: 'gale', start: null, end: null });
+  expect(parseHash('')).toEqual({ region: null, start: null, end: null });
+});
