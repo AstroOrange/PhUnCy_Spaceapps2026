@@ -84,6 +84,12 @@ if (meta) {
   if (hazards.crater) overlay('Crater rims (Robbins catalog)', hazards.crater, v => [0, 0, 0, v > 0.3 ? v * 200 : 0]);
 } else msg('No elevation data yet: run scripts/prep_dem.py (see README).');
 $('ice').hidden = !layers.ice;
+// Seasonal weather table from scripts/fetch_mcd.py (Mars Climate Database)
+const climate = await fetch('data/climate.json').then(r => r.json()).catch(() => null);
+const SEASONS = ['northern spring', 'northern summer', 'northern autumn', 'northern winter'];
+$('seasonRow').hidden = !climate;
+if (climate) $('season').innerHTML = climate.rows.map((r, i) =>
+  `<option value="${i}">Month ${i + 1} (Ls ${r.ls}°), ${SEASONS[Math.floor(r.ls / 90)]}${r.dust_storm != null ? ', dust storm season' : ''}</option>`).join('');
 $('looseRow').hidden = !hazards.loose;
 $('craterRow').hidden = !hazards.crater;
 $('crater').oninput = e => ($('craterv').textContent = `×${e.target.value}`);
@@ -114,6 +120,20 @@ function run(toIce) {
 }
 $('go').onclick = () => run(false);
 $('ice').onclick = () => run(true);
+
+// Weather block for the chosen Mars month (all values Estimated: a climate model, not a forecast)
+function weather(w) {
+  const sky = w.dust < 0.5 ? 'mostly clear' : w.dust < 1 ? 'hazy' : 'dusty';
+  const warn = [
+    w.dust_storm != null && `Dust storm season. In a storm year the model puts dust opacity here at ${w.dust_storm}, enough to cut sunlight and visibility.`,
+    w.t_night < -80 && `Nights drop to about ${w.t_night} °C: plan to travel and rest inside daylight hours.`,
+    w.wind > 10 && `Winds around ${w.wind} m/s can lift dust.`,
+  ].filter(Boolean);
+  const stat = (v, u, t) => `<div class="stat"><b>${v}<small>${u}</small></b><span>${t}</span></div>`;
+  return `<p class="kicker">Weather this season, estimated (Mars Climate Database)</p><div class="stats">
+    ${stat(w.dust, '', `Dust opacity, ${sky}`)}${stat(`${w.t_day}/${w.t_night}`, '°C', 'Ground, 1 pm / 4 am')}
+    ${stat(w.wind, 'm/s', 'Wind at 1 pm')}</div>${warn.map(t => `<p class="note">${t}</p>`).join('')}`;
+}
 
 let line, steep, chart, lastPath;
 function show(path, toIce) {
@@ -152,6 +172,7 @@ function show(path, toIce) {
     ${hazards.crater ? stat(Math.round(100 * rimN / idx.length), '%', 'Route on or near crater rims') : ''}
     ${toIce && layers.ice ? stat(layers.ice[idx.at(-1)].toFixed(2), '', 'Ice score at B (SWIM, -1 to +1)') : ''}</div>
     ${toIce ? `<p class="note">B is the nearest place where the SWIM ice score is ${ICE_MIN} or higher: the orbiter data there is consistent with ice within 1 m of the surface.</p>` : ''}
+    ${climate ? weather(climate.rows[+$('season').value]) : ''}
     <p class="note">Every step stays under ${$('max').value}° at 463 m resolution. Smaller hazards are not visible.</p>`;
   chart = new Chart($('profile'), {
     type: 'line',
