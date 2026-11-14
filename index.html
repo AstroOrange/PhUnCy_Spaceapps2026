@@ -36,6 +36,11 @@
     button:disabled { opacity: .5; cursor: wait; }
     #go { flex: 1; }
     #ice { width: 100%; margin-top: 8px; }
+    #addStop.on { background: var(--orange); border-color: var(--orange); color: var(--paper); }
+    .pin.stop { background: var(--orange); color: var(--paper); border-color: var(--ink); }
+    .sources table { width: 100%; border-collapse: collapse; font-size: 12px; }
+    .sources td { padding: 3px 0; border-bottom: 1px solid var(--ink); vertical-align: top; }
+    .sources td:first-child { font-weight: 700; padding-right: 10px; white-space: nowrap; }
     .kicker { margin: 14px 0 6px; padding-top: 6px; border-top: 1px solid var(--ink); font-size: 12px; font-weight: 700; }
     .stats { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 16px; }
     .stat b { display: block; font: 700 30px/1 var(--narrow); letter-spacing: -0.5px; }
@@ -86,6 +91,9 @@
         <label for="start">From</label><select id="start"></select>
         <label for="end">To</label><select id="end"></select>
         <p class="hint">Or click the map twice: first the start, then the end.</p>
+        <div class="buttons"><button id="addStop" class="alt">Add science stops</button><button id="clearStops" class="alt" hidden>Clear stops</button></div>
+        <label for="mode">Travel</label><select id="mode"><option value="walk">On foot, 2 astronauts</option><option value="rover">Unpressurised rover, 2 astronauts</option></select>
+        <label for="eva">EVA length</label><select id="eva"><option value="4">4 hours</option><option value="6">6 hours</option><option value="8" selected>8 hours</option></select>
         <label for="max">Steepest slope allowed <output id="maxv">15°</output></label>
         <input id="max" type="range" value="15" min="5" max="30" />
         <div id="seasonRow"><label for="season">Season</label><select id="season"></select></div>
@@ -98,6 +106,19 @@
       </section>
       <section><h2>Summary</h2><div id="summary"><p class="note">No route yet.</p></div></section>
       <section id="chartBox" hidden><h2>Elevation profile</h2><canvas id="profile" height="160"></canvas></section>
+      <section class="sources"><h2>Data in this map</h2>
+        <table>
+          <tr><td>Topographic</td><td>MOLA elevation and slope (Mars Global Surveyor)</td></tr>
+          <tr><td>Optical</td><td>CTX mosaic and HiRISE images (Mars Reconnaissance Orbiter)</td></tr>
+          <tr><td>Thermal</td><td>TES thermal inertia (Mars Global Surveyor)</td></tr>
+          <tr><td>Spectral</td><td>TES Dust Cover Index (Mars Global Surveyor)</td></tr>
+          <tr><td>Geophysical</td><td>SWIM ice: radar, neutron, thermal, landforms (several orbiters)</td></tr>
+          <tr><td>Atmospheric</td><td>Mars Climate Database: dust, temperature, wind</td></tr>
+          <tr><td>Radiation</td><td>Curiosity RAD surface dose rate</td></tr>
+          <tr><td>Geologic</td><td>Robbins and Hynek crater catalog</td></tr>
+        </table>
+        <p class="note">No lander or rover has visited Arcadia, so there are no ground-level photos yet. Site popups link to HiRISE close-ups from orbit.</p>
+      </section>
       <section class="limits"><h2>What this map can't see</h2>
         <p>Anything smaller than about 460 m (boulders, small craters, cliffs), loose sand or dust that can trap a rover
           or tire a walker, and weather such as dust storms. Check higher-resolution imagery before travel.</p>

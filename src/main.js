@@ -49,7 +49,8 @@ map.attributionControl.setPrefix('<a href="https://leafletjs.com">Leaflet</a>');
 const layerControl = L.control.layers({ 'Relief (MOLA)': mola, 'Imagery (CTX)': ctx }).addTo(map);
 for (const s of named)
   L.marker([s.lat, s.lon], { icon: icon(SYM[s.ref ? 'ref' : s.poi ? 'poi' : 'site'] + `<b>${s.code || s.name.split(',')[0]}</b>`) })
-    .bindPopup(`<b>${s.code} ${s.name}</b><br>${s.lat}°, ${s.lon}°<br><small>${s.source}</small>`).addTo(map);
+    .bindPopup(`<b>${s.code} ${s.name}</b><br>${s.lat}°, ${s.lon}°<br><small>${s.source}</small>` +
+      (s.source.match(/ESP_\d{6}_\d{4}/g) || []).map(id => `<br><a href="https://www.uahirise.org/${id}" target="_blank" rel="noopener">See it up close: HiRISE ${id}</a>`).join('')).addTo(map);
 const legend = L.control({ position: 'bottomleft' });
 legend.onAdd = () => Object.assign(L.DomUtil.create('div', 'legend'), { innerHTML: [
   [SYM.site, 'Candidate landing site (S)'], [SYM.poi, 'Point of interest (P)'],
@@ -103,20 +104,43 @@ const setPt = (k, ll) => { pts[k] = ll; pins[k]?.remove(); pins[k] = L.marker(ll
   $(id).innerHTML = '<option value="">Choose a site, or click the map</option>' + named.map((s, i) => `<option value="${i}">${s.code} ${s.name}</option>`).join('');
   $(id).onchange = e => e.target.value && setPt(k, [named[e.target.value].lat, named[e.target.value].lon]);
 });
-let next = 0;
-map.on('click', e => { $(next ? 'end' : 'start').value = ''; setPt(next, [e.latlng.lat, e.latlng.lng]); next ^= 1; });
+let next = 0, stopMode = false;
+const stops = [], stopPins = [];
+map.on('click', e => {
+  const ll = [e.latlng.lat, e.latlng.lng];
+  if (stopMode) {
+    stops.push(ll);
+    stopPins.push(L.marker(ll, { icon: icon(String(stops.length), 'pin stop', 18), zIndexOffset: 900 }).addTo(map));
+    $('clearStops').hidden = false;
+    return;
+  }
+  $(next ? 'end' : 'start').value = ''; setPt(next, ll); next ^= 1;
+});
+$('addStop').onclick = () => {
+  stopMode = !stopMode;
+  $('addStop').textContent = stopMode ? 'Done adding stops' : 'Add science stops';
+  $('addStop').classList.toggle('on', stopMode);
+};
+$('clearStops').onclick = () => { stops.length = 0; stopPins.splice(0).forEach(m => m.remove()); $('clearStops').hidden = true; };
 
-function run(toIce) {
+const ask = m => new Promise(res => { worker.onmessage = e => res(e.data); worker.postMessage(m); });
+async function run(toIce) {
   if (!worker) return;
   if (!pts[0] || (!toIce && !pts[1])) return msg(toIce ? 'Pick a start first.' : 'Pick a start and an end first.');
-  const cells = pts.slice(0, toIce ? 1 : 2).map(p => latLonCell(meta, ...p));
+  const cells = (toIce ? [pts[0]] : [pts[0], ...stops, pts[1]]).map(p => latLonCell(meta, ...p));
   if (cells.flat().some((v, i) => v < 0 || v >= (i % 2 ? meta.cols : meta.rows)))
-    return msg('Points must be inside the dashed elevation data box.');
-  if (!toIce) location.hash = pts.flat().map(v => v.toFixed(4)).join(',');
+    return msg('All points must be inside the dashed elevation data box.');
+  if (!toIce) location.hash = [pts[0], pts[1]].flat().map(v => v.toFixed(4)).join(',');
   msg(toIce ? 'Searching for the nearest likely ice.' : 'Working out the safest route.');
   $('go').disabled = $('ice').disabled = true;
-  worker.onmessage = e => show(e.data, toIce);
-  worker.postMessage({ start: cells[0], end: toIce ? null : cells[1], iceMin: toIce ? ICE_MIN : null, opts: { maxSlope: +$('max').value }, weights: { loose: +$('loose').value, crater: +$('crater').value } });
+  const base = { opts: { maxSlope: +$('max').value }, weights: { loose: +$('loose').value, crater: +$('crater').value } };
+  let path = [];
+  if (toIce) path = await ask({ ...base, start: cells[0], end: null, iceMin: ICE_MIN });
+  else for (let i = 0; i + 1 < cells.length && path; i++) { // one leg per pair of points: A, stops, B
+    const leg = await ask({ ...base, start: cells[i], end: cells[i + 1] });
+    path = leg && path.concat(i ? leg.slice(1) : leg);
+  }
+  show(path, toIce);
 }
 $('go').onclick = () => run(false);
 $('ice').onclick = () => run(true);
@@ -133,6 +157,23 @@ function weather(w) {
   return `<p class="kicker">Weather this season, estimated (Mars Climate Database)</p><div class="stats">
     ${stat(w.dust, '', `Dust opacity, ${sky}`)}${stat(`${w.t_day}/${w.t_night}`, '°C', 'Ground, 1 pm / 4 am')}
     ${stat(w.wind, 'm/s', 'Wind at 1 pm')}</div>${warn.map(t => `<p class="note">${t}</p>`).join('')}`;
+}
+
+// Marswalk plan (all Estimated): travel speed is an assumption, radiation uses the surface dose rate
+// Curiosity's RAD measured at Gale (about 0.67 mSv per day, Hassler et al. 2014).
+const MODES = { walk: { label: 'on foot', v: [1.5, 3] }, rover: { label: 'by unpressurised rover', v: [5, 10] } };
+const DOSE_PER_H = 0.67 / 24;
+function marswalk(km) {
+  const m = MODES[$('mode').value], eva = +$('eva').value, back = 2 * km;
+  const slow = back / m.v[0], fast = back / m.v[1], reach = (eva * m.v[0]) / 2;
+  const fit = slow <= eva ? `Fits one ${eva} h EVA even at the slower pace.`
+    : fast <= eva ? `Fits one ${eva} h EVA only at the faster pace: little margin.`
+    : `Too far for one ${eva} h EVA ${m.label}. Options: a rover, an overnight camp, or a target within ${reach.toFixed(0)} km.`;
+  const stat = (v, u, t) => `<div class="stat"><b>${v}<small>${u}</small></b><span>${t}</span></div>`;
+  return `<p class="kicker">Marswalk plan, estimated (2 astronauts, ${m.label})</p><div class="stats">
+    ${stat(back.toFixed(0), 'km', 'Out and back')}${stat(`${fast.toFixed(1)}-${slow.toFixed(1)}`, 'h', `Out and back at ${m.v[0]} to ${m.v[1]} km/h`)}
+    ${stat(reach.toFixed(0), 'km', `Furthest target for a ${eva} h EVA (slow pace)`)}${stat((Math.min(slow, eva) * DOSE_PER_H).toFixed(2), 'mSv', 'Radiation dose outside, this EVA')}</div>
+    <p class="note">${fit} Astronauts move as a pair, so the plan uses the slower walker's pace. Radiation is from Curiosity's surface measurements; Arcadia is lower, so its thicker air shields slightly more.</p>`;
 }
 
 let line, steep, chart, lastPath;
@@ -166,12 +207,13 @@ function show(path, toIce) {
     ${stat(km.toFixed(0), 'km', 'Distance', true)}${stat(`${r10(gain)}/${r10(loss)}`, 'm', 'Climb / descent')}
     ${stat(maxS.toFixed(0), '°', `Steepest slope ${SYM.hazard}`)}</div>
     <p class="kicker">Estimated</p><div class="stats">
-    ${stat(`${Math.round(km / 3)}-${Math.round(km / 1.5)}`, 'h', 'Walking time at 1.5 to 3 km/h')}
+    ${stat(`${(km / MODES[$('mode').value].v[1]).toFixed(1)}-${(km / MODES[$('mode').value].v[0]).toFixed(1)}`, 'h', `One way, ${MODES[$('mode').value].label}`)}
     ${stat(Math.round(100 * unknown / idx.length), '%', 'Route over missing data')}
     ${hazards.loose ? stat(Math.round(100 * looseN / idx.length), '%', 'Route over loose or dusty ground') : ''}
     ${hazards.crater ? stat(Math.round(100 * rimN / idx.length), '%', 'Route on or near crater rims') : ''}
     ${toIce && layers.ice ? stat(layers.ice[idx.at(-1)].toFixed(2), '', 'Ice score at B (SWIM, -1 to +1)') : ''}</div>
     ${toIce ? `<p class="note">B is the nearest place where the SWIM ice score is ${ICE_MIN} or higher: the orbiter data there is consistent with ice within 1 m of the surface.</p>` : ''}
+    ${marswalk(km)}
     ${climate ? weather(climate.rows[+$('season').value]) : ''}
     <p class="note">Every step stays under ${$('max').value}° at 463 m resolution. Smaller hazards are not visible.</p>`;
   chart = new Chart($('profile'), {

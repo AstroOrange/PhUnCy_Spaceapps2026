@@ -14,6 +14,12 @@ Demo region: SpaceX's Starship candidate sites in the Arcadia region (37.5°N to
   - Crater rims: distance to the rim crest of every crater 1 km or wider in the Robbins & Hynek catalog.
 - Route to the nearest likely ice: from point A to the closest cell where the SWIM ice-consistency score (ice within 1 m) is 0.25 or more.
 - Weather by season: dust opacity, ground temperature and wind for each Mars month from the Mars Climate Database, with warnings.
+- Marswalk plan: travel on foot or by unpressurised rover (2 astronauts), EVA length 4/6/8 h; checks whether the
+  out-and-back trip fits one EVA, gives the furthest reachable target, and estimates the radiation dose outside
+  (Curiosity RAD surface rate, about 0.67 mSv/day). Speeds are assumptions: 1.5-3 km/h on foot, 5-10 km/h by rover.
+- Science stops: add any number of stops; the route goes A -> stops -> B, leg by leg.
+- Site popups link to the HiRISE close-ups; the panel lists the data types used (topographic, optical, thermal,
+  spectral, geophysical, atmospheric, radiation, geologic).
 - Summary: distance, climb/descent, steepest slope with a map marker (Measured, from MOLA); walking time, loose ground,
   crater rims, ice score and weather (Estimated); elevation profile chart.
 - "3D view": Three.js terrain (≤500×500 vertices, 3× vertical exaggeration, low sun and shadows), real CTX imagery
