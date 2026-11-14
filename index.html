@@ -31,6 +31,13 @@
     .logo span { color: var(--orange); }
     #crumb { font: 700 13px var(--narrow); letter-spacing: 3px; text-transform: uppercase; color: var(--dim); }
     #crumb b { color: var(--text); }
+    #cbar { margin-left: auto; width: min(360px, 32vw); font: 10px var(--mono); color: var(--dim); }
+    .cbar-head { display: flex; justify-content: space-between; font: 700 10px var(--narrow); letter-spacing: 2px; text-transform: uppercase; margin-bottom: 3px; }
+    #cbarBar { position: relative; height: 10px; border: 1px solid var(--line); }
+    #cbarMark { position: absolute; top: -5px; width: 0; height: 0; transform: translateX(-5px);
+                border: 5px solid transparent; border-top: 6px solid var(--text); border-bottom: 0; }
+    #cbarTicks { position: relative; height: 13px; margin-top: 2px; }
+    #cbarTicks span { position: absolute; transform: translateX(-50%); color: var(--text); }
     #readout { margin-left: auto; font: 12px var(--mono); color: var(--dim); text-align: right; white-space: pre; }
     #readout b { color: var(--text); font-weight: 400; }
     #back { padding: 7px 12px; font-size: 12px; }
@@ -175,6 +182,11 @@
     <div class="logo">Martian<br><span>Map</span></div>
     <button id="back" class="alt" hidden>◀ World map</button>
     <div id="crumb"><b>World map</b></div>
+    <div id="cbar" hidden title="MOLA elevation colour scale, kilometres above the Mars datum (areoid)">
+      <div class="cbar-head"><span>Elevation, MGS MOLA</span><span>km</span></div>
+      <div id="cbarBar"><i id="cbarMark" hidden></i></div>
+      <div id="cbarTicks"></div>
+    </div>
     <div id="readout"></div>
   </div>
   <div id="hint" class="hud">Drag to explore Mars · select a glowing sector</div>
@@ -222,7 +234,8 @@
       <details class="sources">
         <summary>Data in this map</summary>
         <table>
-          <tr><td>Topographic</td><td>MOLA elevation and slope (Mars Global Surveyor)</td></tr>
+          <tr><td>Topographic</td><td>MOLA elevation and slope (Mars Global Surveyor); 463 m in the sector, 15 km worldwide</td></tr>
+          <tr><td>Colour</td><td>Viking orbiter colour mosaic, MDIM 2.1 (USGS)</td></tr>
           <tr><td>Optical</td><td>CTX mosaic and HiRISE images (Mars Reconnaissance Orbiter)</td></tr>
           <tr><td>Thermal</td><td>TES thermal inertia (Mars Global Surveyor)</td></tr>
           <tr><td>Spectral</td><td>TES Dust Cover Index (Mars Global Surveyor)</td></tr>

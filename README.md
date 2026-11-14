@@ -8,7 +8,10 @@ and EM-16 (Golombek et al. 2021; Luzzi et al. 2025), where ice is estimated to l
 rover site, no shallow ice) was built and is in the git history (commit 8704b26).
 
 ## What it does
-- World hub: the whole of Mars (NASA Mars Trek MOLA colour relief / CTX imagery) to pan and zoom, with landmark labels and
+- World hub: the whole of Mars to pan and zoom. It opens in Mars's own colours (Viking orbiter colour mosaic); the layer menu
+  switches to MGS MOLA elevation in colour or CTX close-up imagery. With the elevation map on, a colour bar (km) sits at the top
+  with a marker at the cursor's height, and the elevation in metres shows next to latitude and longitude. The bar's colours
+  are measured from the MOLA tiles themselves against MOLA heights (`scripts/fetch_mola_global.py`). Landmark labels and
   sector nodes. Arcadia Planitia is open; Jezero, Gale and Oxia Planum are previews with a short description, to be expanded
   later (sectors are listed in `src/hub.js`). Select a sector for its card, then "Enter sector" to fly in.
 - Mission planner inside the sector: deploy from a landing site, then pick an objective:
@@ -18,7 +21,8 @@ rover site, no shallow ice) was built and is in the git history (commit 8704b26)
     `public/sites.json` with a `"mineral"` field. OMEGA finds pyroxene (exposed volcanic rock) only in the south-east of the
     sector, and no olivine or water-bearing minerals anywhere in it. The Ice and Minerals tabs also switch their map layer.
   - Sites: candidate landing sites and points of interest. Pin: click the map to drop B. Pins can be dragged.
-- Cursor readout: latitude and longitude anywhere; elevation, slope, ice score and pyroxene index inside the sector.
+- Cursor readout: latitude and longitude anywhere; elevation anywhere (≈ marks the 15 km world grid, no mark the 463 m sector
+  grid); slope, ice score and pyroxene index inside the sector.
 - Route between A and B, found by A* in a Web Worker on an 8-neighbour grid:
   step cost = distance × (1 + 0.1 × slope° + extra hazards). Slopes over the limit (default 15°) are blocked;
   cells with no data are high-cost "unknown", never treated as flat.
@@ -58,7 +62,7 @@ rover site, no shallow ice) was built and is in the git history (commit 8704b26)
     python -m venv .venv && .venv\Scripts\pip install -r scripts/requirements.txt
     .venv\Scripts\python scripts/prep_dem.py 37.5 41 -171 -156 --layer ice=data/raw/swim/SWIM2_c0_1.tif ^
         --layer ti=data/raw/ti/ti_arcadia_wide.tif --layer dci=data/raw/dci/dci_16ppd.tif --craters data/raw/craters/craters2020.csv.zip
-    cd scripts && ..\.venv\Scripts\python fetch_omega.py ..\public\data && cd ..
+    cd scripts && ..\.venv\Scripts\python fetch_omega.py ..\public\data && ..\.venv\Scripts\python fetch_mola_global.py ..\public\data && cd ..
     .venv\Scripts\python scripts/fetch_mcd.py 39.25 193
 `prep_dem.py` reads `data/raw/mola.tif` (USGS DEM) and resamples every `--layer` raster onto the same grid, writing packed
 Int16 grids `public/data/*.i16` and `dem.json` (with each grid's scale and offset; see `scripts/gridpack.py`).
@@ -68,7 +72,10 @@ Longitudes are -180..180 east (except `fetch_mcd.py`, which takes 0..360 east). 
 
 ## Data sources
 - Elevation: USGS Astrogeology, Mars MGS MOLA DEM 463 m, https://astrogeology.usgs.gov/search/map/mars_mgs_mola_dem_463m
-- Base map: NASA Mars Trek WMTS: MOLA colour shaded relief (463 m) and CTX global mosaic (5 m, Caltech Murray Lab), https://trek.nasa.gov/mars/
+- Base map: NASA Mars Trek WMTS: Viking MDIM 2.1 colour mosaic (USGS), MOLA colour shaded relief (463 m) and CTX global mosaic
+  (5 m, Caltech Murray Lab), https://trek.nasa.gov/mars/
+- World elevation readout: MGS MOLA MEGDR, 4 pixels per degree (Smith et al. 2003), NASA PDS Geosciences Node,
+  https://pds-geosciences.wustl.edu/mgs/mgs-m-mola-5-megdr-l3-v1/
 - SpaceX candidate sites and points of interest: HiRISE (University of Arizona) image centres of the "Candidate Landing Site for
   SpaceX Starship" and traverse-hazard images (2019-2026), https://www.uahirise.org (image IDs in `public/sites.json`)
 - AP-1, AP-8, AP-9, EM-15, EM-16: Golombek, Williams, Wooster (SpaceX), McEwen et al. (2021), SpaceX Starship Landing Sites on

@@ -11,6 +11,8 @@ import { peaks } from './targets.js';
 import { SECTORS, FEATURES } from './hub.js';
 
 const $ = id => document.getElementById(id);
+// Packed Int16 grids from scripts/gridpack.py: value = raw * scale + offset, -32768 = no data
+const unpack = (raw, { scale, offset }) => { const out = new Float32Array(raw.length); for (let i = 0; i < raw.length; i++) out[i] = raw[i] === -32768 ? NaN : raw[i] * scale + offset; return out; };
 const msg = t => ($('summary').innerHTML = `<p class="note">${t}</p>`);
 Object.assign(Chart.defaults, { color: '#8b97a3', borderColor: 'rgba(255,255,255,.08)' });
 Object.assign(Chart.defaults.font, { family: 'Archivo, Arial, sans-serif', size: 10 });
@@ -19,6 +21,9 @@ Object.assign(Chart.defaults.plugins.tooltip, { backgroundColor: '#0a0d11', titl
 
 // Formats/URLs checked against each layer's WMTSCapabilities.xml:
 // MOLA = 256px .jpg on trek.nasa.gov; CTX = 512px .png redirected to astro.arcgis.com (2x1 tiles at level 0).
+const viking = L.tileLayer( // Viking orbiter colour mosaic: Mars in its own colours, from real images
+  'https://trek.nasa.gov/tiles/Mars/EQ/Mars_Viking_MDIM21_ClrMosaic_global_232m/1.0.0/default/default028mm/{z}/{y}/{x}.jpg',
+  { maxNativeZoom: 7, maxZoom: 12, crossOrigin: true, keepBuffer: 4, updateWhenZooming: false, attribution: 'NASA Mars Trek, Viking MDIM 2.1 (USGS)' });
 const mola = L.tileLayer(
   'https://trek.nasa.gov/tiles/Mars/EQ/Mars_MGS_MOLA_ClrShade_merge_global_463m/1.0.0/default/default028mm/{z}/{y}/{x}.jpg',
   { maxNativeZoom: 7, maxZoom: 12, crossOrigin: true, keepBuffer: 4, updateWhenZooming: false, attribution: 'NASA Mars Trek, USGS MOLA' });
@@ -50,10 +55,25 @@ for (const s of named) s.code ??= s.ref ? '' : s.poi ? `P${++p}` : `S${++n}`; //
 
 // Map. Everything that belongs to the sector lives in two panes that are hidden on the world map.
 const WORLD_VIEW = innerWidth < 760 ? [[32, -150], 2] : [[15, -95], 2]; // phones start over Arcadia
-const map = L.map('map', { crs: L.CRS.EPSG4326, layers: [mola], minZoom: 1, maxZoom: 12,
+const map = L.map('map', { crs: L.CRS.EPSG4326, layers: [viking], minZoom: 1, maxZoom: 12,
   maxBounds: [[-90, -180], [90, 180]], maxBoundsViscosity: 1 }).setView(...WORLD_VIEW);
 map.attributionControl.setPrefix('<a href="https://leafletjs.com">Leaflet</a>');
-const layerControl = L.control.layers({ 'Relief (MOLA)': mola, 'Imagery (CTX)': ctx }, null, { position: 'topleft' }).addTo(map);
+const layerControl = L.control.layers({ 'Mars colour (Viking orbiters)': viking, 'Elevation in colour (MGS MOLA)': mola, 'Close-up imagery (CTX)': ctx },
+  null, { position: 'topleft' }).addTo(map);
+
+// Elevation everywhere: MOLA 4 px/degree grid (about 15 km) and the colour bar measured from the MOLA tiles
+// (scripts/fetch_mola_global.py). Inside the sector the 463 m grid is used instead.
+let molaOn = false, globe = null, cbar = null;
+fetch('data/mola_global.json').then(r => r.json()).then(async g => {
+  globe = { ...g, h: unpack(new Int16Array(await (await fetch('data/mola_global.i16')).arrayBuffer()), g.packed) };
+  const st = g.colorbar, lo = st[0][0], hi = st.at(-1)[0], pct = z => (100 * (z - lo)) / (hi - lo);
+  cbar = { lo, hi, pct };
+  $('cbarBar').style.background = `linear-gradient(90deg, ${st.map(([z, r, gr, b]) => `rgb(${r},${gr},${b}) ${pct(z).toFixed(1)}%`).join(', ')})`;
+  const ticks = [];
+  for (let z = Math.ceil(lo / 2000) * 2000; z <= hi; z += 2000) ticks.push(`<span style="left:${pct(z)}%">${z / 1000}</span>`);
+  $('cbarTicks').innerHTML = ticks.join('');
+}).catch(() => {});
+map.on('baselayerchange', e => { molaOn = e.layer === mola; $('cbar').hidden = !molaOn; });
 map.createPane('sectorLines').style.zIndex = 450;
 map.createPane('sectorMarks').style.zIndex = 620;
 const showSector = on => ['sectorLines', 'sectorMarks'].forEach(k => (map.getPane(k).style.display = on ? '' : 'none'));
@@ -80,8 +100,6 @@ for (const sec of SECTORS) {
     .on('click', () => selectSector(sec)).addTo(world);
 }
 
-// Packed Int16 grids from scripts/gridpack.py: value = raw * scale + offset, -32768 = no data
-const unpack = (raw, { scale, offset }) => { const out = new Float32Array(raw.length); for (let i = 0; i < raw.length; i++) out[i] = raw[i] === -32768 ? NaN : raw[i] * scale + offset; return out; };
 const BLANK = 'data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==';
 // Terrain data loads in the background while you look around the world map
 const ICE_MIN = 0.25; // SWIM ice-consistency score treated as "ice likely" (strongest signal in this region)
@@ -213,14 +231,20 @@ function readout() {
   const { lat, lng } = lastMove.latlng;
   lastMove = null;
   let t = `LAT <b>${Math.abs(lat).toFixed(2)}°${lat < 0 ? 'S' : 'N'}</b>  LON <b>${Math.abs(lng).toFixed(2)}°${lng < 0 ? 'W' : 'E'}</b>`;
+  let i = -1, z = NaN, fine = false;
   if (meta) {
     const [r, c] = latLonCell(meta, lat, lng);
-    if (r >= 0 && c >= 0 && r < meta.rows && c < meta.cols) {
-      const i = r * meta.cols + c;
-      t += `\nELEV <b>${h[i].toFixed(0)} m</b>  SLOPE <b>${s[i].toFixed(1)}°</b>${layers.ice ? `  ICE <b>${layers.ice[i].toFixed(2)}</b>` : ''}${layers.pyroxene?.[i] > 0 ? `  PYX <b>${layers.pyroxene[i].toFixed(3)}</b>` : ''}`;
-    }
+    if (r >= 0 && c >= 0 && r < meta.rows && c < meta.cols) { i = r * meta.cols + c; z = h[i]; fine = true; }
   }
+  if (!fine && globe) z = globe.h[Math.min(globe.rows - 1, Math.floor((90 - lat) * globe.ppd)) * globe.cols + Math.min(globe.cols - 1, Math.floor((lng + 180) * globe.ppd))];
+  const elev = Number.isFinite(z) ? `  ELEV <b>${fine ? '' : '≈'}${Math.round(z).toLocaleString('en')} m</b>` : '';
+  if (molaOn) t += elev; // next to latitude and longitude while the elevation map is shown
+  if (i >= 0) t += `\n${molaOn ? '' : elev.trim() + '  '}SLOPE <b>${s[i].toFixed(1)}°</b>${layers.ice ? `  ICE <b>${layers.ice[i].toFixed(2)}</b>` : ''}${layers.pyroxene?.[i] > 0 ? `  PYX <b>${layers.pyroxene[i].toFixed(3)}</b>` : ''}`;
   $('readout').innerHTML = t;
+  if (molaOn && cbar && Number.isFinite(z)) {
+    $('cbarMark').hidden = false;
+    $('cbarMark').style.left = `${Math.min(100, Math.max(0, cbar.pct(z)))}%`;
+  }
 }
 
 // Start (A), destination (B) and science stops
