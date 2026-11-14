@@ -1,11 +1,12 @@
 """Crop the MOLA 463 m DEM to a lat/lon box and write web-ready grids.
 
 Usage: python scripts/prep_dem.py LAT_MIN LAT_MAX LON_MIN LON_MAX [--src data/raw/mola.tif] [--out public/data]
-                                 [--layer NAME=PATH ...]
+                                 [--layer NAME=PATH ...] [--craters CATALOG.csv(.zip)]
 Longitudes are -180..180 east. Outputs:
   dem.bin    Float32 heights (m), row 0 = north, NaN = no data
   slope.bin  Float32 slope (degrees), NaN = no data
   NAME.bin   Float32, each --layer raster resampled onto the same grid, NaN = no data
+  crater.bin Float32 crater rim proximity 0..1 from the Robbins crater catalog (1 on the rim crest)
   dem.json   {bounds: [latMin, latMax, lonMin, lonMax], rows, cols, layers: [NAME, ...]}
 """
 import argparse, json, os
@@ -23,6 +24,7 @@ for a in ('lat_min', 'lat_max', 'lon_min', 'lon_max'):
 p.add_argument('--src', default='data/raw/mola.tif')
 p.add_argument('--out', default='public/data')
 p.add_argument('--layer', action='append', default=[], metavar='NAME=PATH', help='extra raster to put on the same grid')
+p.add_argument('--craters', help='Robbins & Hynek crater catalog (.csv or .csv.zip)')
 a = p.parse_args()
 
 with rasterio.open(a.src) as src:
@@ -58,6 +60,33 @@ for spec in a.layer:
     grid.tofile(f'{a.out}/{name}.bin')
     names.append(name)
     print(f'{name}: {np.isnan(grid).mean():.1%} no data, range {np.nanmin(grid):.2f}..{np.nanmax(grid):.2f}')
+if a.craters:
+    import csv, io, zipfile
+    f = zipfile.ZipFile(a.craters).open(zipfile.ZipFile(a.craters).namelist()[0]) if a.craters.endswith('.zip') else open(a.craters, 'rb')
+    km = M_PER_DEG / 1000
+    clat = a.lat_max - (np.arange(rows) + 0.5) * (a.lat_max - a.lat_min) / rows
+    clon = a.lon_min + (np.arange(cols) + 0.5) * (a.lon_max - a.lon_min) / cols
+    rim, used = np.zeros((rows, cols), np.float32), 0
+    for row in csv.DictReader(io.TextIOWrapper(f, 'utf-8-sig')):
+        la, lo, R = float(row['LAT_CIRC_IMG']), float(row['LON_CIRC_IMG']), float(row['DIAM_CIRC_IMG']) / 2
+        lo = lo - 360 if lo > 180 else lo
+        if R > 50:                                     # ancient basins: worn down, their relief is already in the slope grid
+            continue
+        band = min(max(0.25 * R, 0.5), 2.0)            # rim zone half-width, km
+        reach_lat = (R + band) / km
+        reach_lon = reach_lat / max(np.cos(np.radians(la)), 0.01)
+        r0, r1 = np.searchsorted(-clat, -(la + reach_lat)), np.searchsorted(-clat, -(la - reach_lat))
+        c0, c1 = np.searchsorted(clon, lo - reach_lon), np.searchsorted(clon, lo + reach_lon)
+        if r0 >= r1 or c0 >= c1:
+            continue
+        dy = (clat[r0:r1, None] - la) * km
+        dx = (clon[None, c0:c1] - lo) * km * np.cos(np.radians(la))
+        score = np.clip(1 - np.abs(np.hypot(dx, dy) - R) / band, 0, 1)
+        np.maximum(rim[r0:r1, c0:c1], score, out=rim[r0:r1, c0:c1])
+        used += 1
+    rim.tofile(f'{a.out}/crater.bin')
+    names.append('crater')
+    print(f'crater: {used} craters in the box, {(rim > 0.5).mean():.1%} of cells near a rim')
 json.dump({'bounds': [a.lat_min, a.lat_max, a.lon_min, a.lon_max], 'rows': rows, 'cols': cols, 'layers': names},
           open(f'{a.out}/dem.json', 'w'))
 print(f'{rows}x{cols} cells, {np.isnan(dem).mean():.1%} no data, '

@@ -9,6 +9,7 @@ export const loose = (ti, dci) => Math.max(c01((150 - ti) / 90), c01((0.95 - dci
 export function hazardGrids(layers) {
   const out = {};
   if (layers.ti && layers.dci) out.loose = layers.ti.map((t, i) => loose(t, layers.dci[i]));
+  if (layers.crater) out.crater = layers.crater; // rim proximity, Robbins & Hynek crater catalog
   return out;
 }
 
