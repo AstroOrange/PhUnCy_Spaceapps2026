@@ -12,29 +12,30 @@ export function bilinear(h, { rows, cols }, r, c) {
   return (v(r0, c0) * (1 - fc) + v(r0, c1) * fc) * (1 - fr) + (v(r1, c0) * (1 - fc) + v(r1, c1) * fc) * fr;
 }
 
-// Real CTX imagery for the box, stitched from Mars Trek tiles and tinted Mars-red.
+// Real CTX imagery for the box, stitched from Mars Trek tiles and tinted Mars-red. Also returns its average colour.
 // Level 8 is skipped: around Erebus Montes the server returns one repeated placeholder tile there.
 async function imagery({ bounds: [latMin, latMax, lonMin, lonMax] }) {
-  let L = Math.min(11, Math.max(0, Math.round(Math.log2(2048 * 360 / ((lonMax - lonMin) * 1024)))));
+  let L = Math.min(11, Math.max(0, Math.round(Math.log2(4096 * 360 / ((lonMax - lonMin) * 1024)))));
   if (L === 8) L = 7;
   const deg = 180 / 2 ** L, px = 512 / deg;
   const x0 = Math.floor((lonMin + 180) / deg), x1 = Math.floor((lonMax + 180) / deg), y0 = Math.floor((90 - latMax) / deg), y1 = Math.floor((90 - latMin) / deg);
   const cv = Object.assign(document.createElement('canvas'), { width: Math.round((lonMax - lonMin) * px), height: Math.round((latMax - latMin) * px) });
   const g = cv.getContext('2d');
-  g.fillStyle = '#777'; g.fillRect(0, 0, cv.width, cv.height); // mosaic gaps
-  const jobs = [];
-  for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) jobs.push(new Promise(ok => {
-    const img = new Image();
+  g.fillStyle = '#8c8c8c'; g.fillRect(0, 0, cv.width, cv.height); // mosaic gaps
+  await Promise.all([...Array((y1 - y0 + 1) * (x1 - x0 + 1)).keys()].map(i => new Promise(ok => {
+    const x = x0 + i % (x1 - x0 + 1), y = y0 + Math.floor(i / (x1 - x0 + 1)), img = new Image();
     img.crossOrigin = 'anonymous';
     img.onload = () => { g.drawImage(img, (x * deg - 180 - lonMin) * px, (90 - y * deg - latMax) * -px, 512, 512); ok(); };
     img.onerror = ok;
     img.src = `https://astro.arcgis.com/arcgis/rest/services/OnMars/CTX/MapServer/tile/${L}/${y}/${x}`;
-  }));
-  await Promise.all(jobs);
+  })));
   g.globalCompositeOperation = 'multiply'; g.fillStyle = '#f2b58e'; g.fillRect(0, 0, cv.width, cv.height);
+  const one = Object.assign(document.createElement('canvas'), { width: 1, height: 1 }).getContext('2d');
+  one.drawImage(cv, 0, 0, 1, 1);
+  const [r, gr, b] = one.getImageData(0, 0, 1, 1).data;
   const tex = new THREE.CanvasTexture(cv);
   tex.colorSpace = THREE.SRGBColorSpace;
-  return tex;
+  return { tex, avg: new THREE.Color(`rgb(${r},${gr},${b})`) };
 }
 
 export function open3D(h, meta, path) {
@@ -48,20 +49,21 @@ export function open3D(h, meta, path) {
   for (const v of hf) if (v < hMin) hMin = v;
   const Y = v => (v - hMin) / 1000 * EXAG;
 
-  // Terrain: downsampled heightmap, unknown cells darkened
+  // Terrain: downsampled heightmap; edges ease down to the ground so there is no hard slab edge
   const step = Math.ceil(Math.max(rows, cols) / MAX_VERTS), nx = Math.floor((cols - 1) / step) + 1, ny = Math.floor((rows - 1) / step) + 1;
+  const border = Math.max(4, Math.round(Math.min(nx, ny) * 0.12));
   const geo = new THREE.PlaneGeometry(1, 1, nx - 1, ny - 1), pos = geo.attributes.position, col = new Float32Array(pos.count * 3);
   for (let i = 0; i < ny; i++) for (let j = 0; j < nx; j++) {
     const k = i * nx + j, n = i * step * cols + j * step;
-    pos.setXYZ(k, X(j * step), Y(hf[n]), Z(i * step));
+    const e = Math.min(1, Math.min(i, ny - 1 - i, j, nx - 1 - j) / border), fade = e * e * (3 - 2 * e);
+    pos.setXYZ(k, X(j * step), Y(hf[n]) * fade, Z(i * step));
     col.fill(Number.isNaN(h[n]) ? 0.3 : 1, k * 3, k * 3 + 3);
   }
   geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
   geo.computeVertexNormals();
-  const mat = new THREE.MeshStandardMaterial({ vertexColors: true, color: '#c4734a', roughness: 1 });
+  const mat = new THREE.MeshStandardMaterial({ vertexColors: true, color: '#b07a55', roughness: 1 });
   const terrain = new THREE.Mesh(geo, mat);
   terrain.castShadow = terrain.receiveShadow = true;
-  imagery(meta).then(t => { mat.map = t; mat.color.set('#fff'); mat.needsUpdate = true; });
 
   const scene = new THREE.Scene(), size = Math.max(W, H);
   const sky = Object.assign(document.createElement('canvas'), { width: 2, height: 256 }), sg = sky.getContext('2d');
@@ -70,52 +72,73 @@ export function open3D(h, meta, path) {
   sg.fillStyle = grad; sg.fillRect(0, 0, 2, 256);
   scene.background = new THREE.CanvasTexture(sky);
   scene.background.colorSpace = THREE.SRGBColorSpace;
-  scene.fog = new THREE.Fog('#c8946b', size * 0.6, size * 2.2);
-  const floor = new THREE.Mesh(new THREE.PlaneGeometry(size * 12, size * 12).rotateX(-Math.PI / 2), new THREE.MeshStandardMaterial({ color: '#6b4630', roughness: 1 }));
-  floor.position.y = -0.05; // plain ground around the data area, fading into the haze
+  scene.fog = new THREE.Fog('#c8946b', size * 0.5, size * 1.8);
+  const floorMat = new THREE.MeshStandardMaterial({ color: '#b07a55', roughness: 1 });
+  const floor = new THREE.Mesh(new THREE.PlaneGeometry(size * 12, size * 12).rotateX(-Math.PI / 2), floorMat);
+  floor.position.y = -0.02;
   floor.receiveShadow = true;
-  scene.add(floor);
-  scene.add(terrain, new THREE.HemisphereLight('#f3d1b0', '#3a2218', 0.9));
-  const sun = new THREE.DirectionalLight('#fff1e0', 3.2); // low sun: long shadows show relief
-  sun.position.set(-size, size * 0.25, size * 0.3);
+  scene.add(floor, terrain, new THREE.HemisphereLight('#f3d1b0', '#3a2218', 0.8));
+  const sun = new THREE.DirectionalLight('#fff1e0', 3); // low sun: long shadows show relief
+  sun.position.set(-size, size * 0.3, size * 0.35);
   sun.castShadow = true;
   sun.shadow.mapSize.set(4096, 4096);
   Object.assign(sun.shadow.camera, { left: -size, right: size, top: size, bottom: -size, far: size * 4 });
   sun.shadow.bias = -0.0005;
   scene.add(sun);
 
-  // Route: smoothed, draped by bilinear heights, lifted a few metres above the ground
+  // Route: grid steps smoothed (moving average, display only), draped by bilinear heights, a few metres above ground
+  let focus = new THREE.Box3(new THREE.Vector3(-W / 2, 0, -H / 2), new THREE.Vector3(W / 2, 0, H / 2));
   if (path?.length > 1) {
-    const ground = (r, c) => new THREE.Vector3(X(c), Y(bilinear(hf, meta, r, c)), Z(r));
-    const keep = path.filter((_, i) => i % Math.max(2, step) === 0 || i === path.length - 1);
+    const k = 6, smooth = path.map((_, i) => {
+      let r = 0, c = 0, n = 0;
+      for (let j = Math.max(0, i - k); j <= Math.min(path.length - 1, i + k); j++) { r += path[j][0]; c += path[j][1]; n++; }
+      return [r / n, c / n];
+    });
+    smooth[0] = path[0]; smooth[smooth.length - 1] = path.at(-1);
+    const keep = smooth.filter((_, i) => i % 3 === 0 || i === smooth.length - 1);
     const flat = new THREE.CatmullRomCurve3(keep.map(([r, c]) => new THREE.Vector3(c, 0, r)));
-    const radius = size / 400;
-    const pts = flat.getSpacedPoints(Math.min(2000, path.length * 3)).map(p => ground(p.z, p.x).add(new THREE.Vector3(0, radius + 0.005 * EXAG, 0)));
-    const mat = c => new THREE.MeshStandardMaterial({ color: c, emissive: c, emissiveIntensity: 0.35, roughness: 0.6 });
-    scene.add(new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), pts.length, radius, 8), mat('#f04e23')));
-    for (const [p, c] of [[pts[0], '#ffffff'], [pts.at(-1), '#000000']]) { // survey stakes: A (start), B (end)
-      const tall = size / 30, stake = new THREE.Mesh(new THREE.CylinderGeometry(radius * 0.5, radius * 0.5, tall), mat(c));
-      const cap = new THREE.Mesh(new THREE.SphereGeometry(radius * 2), mat(c));
+    const radius = size / 900;
+    const pts = flat.getSpacedPoints(Math.min(3000, path.length * 4))
+      .map(p => new THREE.Vector3(X(p.x), Y(bilinear(hf, meta, p.z, p.x)) + radius + 0.01, Z(p.z)));
+    const glow = c => new THREE.MeshStandardMaterial({ color: c, emissive: c, emissiveIntensity: 0.5, roughness: 0.5 });
+    scene.add(new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), pts.length, radius, 8), glow('#f04e23')));
+    for (const [p, c] of [[pts[0], '#ffffff'], [pts.at(-1), '#111111']]) { // survey stakes: A (start), B (end)
+      const tall = size / 35, stake = new THREE.Mesh(new THREE.CylinderGeometry(radius * 0.6, radius * 0.6, tall), glow(c));
+      const cap = new THREE.Mesh(new THREE.SphereGeometry(radius * 2.5), glow(c));
       stake.position.copy(p).y += tall / 2;
       cap.position.copy(p).y += tall;
       scene.add(stake, cap);
     }
+    focus = new THREE.Box3().setFromPoints(pts);
   }
 
   // Overlay, renderer, controls
   const box = document.createElement('div');
   box.id = 'view3d';
-  box.innerHTML = `<button>Back to map</button><p>Heights from MOLA 463 m, exaggerated ${EXAG} times. Imagery from the CTX mosaic via NASA Mars Trek. Drag to orbit, scroll to zoom.</p>`;
+  box.innerHTML = `<button>Back to map</button><p>Heights from MOLA 463 m, exaggerated ${EXAG} times. Imagery from the CTX mosaic via NASA Mars Trek. Route smoothed for display. Drag to orbit, scroll to zoom.</p>`;
   document.body.append(box);
   const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
   renderer.shadowMap.enabled = true;
-  renderer.setPixelRatio(devicePixelRatio);
+  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  renderer.toneMapping = THREE.ACESFilmicToneMapping;
+  renderer.toneMappingExposure = 1.15;
+  renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
   box.prepend(renderer.domElement);
-  const camera = new THREE.PerspectiveCamera(45, 1, size / 1000, size * 5);
-  camera.position.set(0, size * 0.42, size * 0.7);
+  imagery(meta).then(({ tex, avg }) => {
+    tex.anisotropy = renderer.capabilities.getMaxAnisotropy(); // keeps the photo sharp at low viewing angles
+    mat.map = tex; mat.color.set('#fff'); mat.needsUpdate = true;
+    floorMat.color.copy(avg);
+  });
+
+  // Frame the route (or the whole area) from the south, about 30 degrees above the horizon
+  const target = focus.getCenter(new THREE.Vector3()), reach = Math.max(focus.getSize(new THREE.Vector3()).length(), size * 0.25);
+  const camera = new THREE.PerspectiveCamera(40, 1, size / 2000, size * 6);
+  camera.position.set(target.x, target.y + reach * 0.42, target.z + reach * 0.8);
   const controls = new OrbitControls(camera, renderer.domElement);
+  controls.target.copy(target);
   controls.enableDamping = true;
-  controls.maxPolarAngle = Math.PI * 0.48;
+  controls.maxPolarAngle = Math.PI * 0.47;
+  controls.maxDistance = size * 2.5;
   const resize = () => { renderer.setSize(innerWidth, innerHeight); camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); };
   resize();
   addEventListener('resize', resize);
