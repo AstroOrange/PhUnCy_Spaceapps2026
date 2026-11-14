@@ -3,7 +3,7 @@
 // `facts` are shown on the preview card as [value, unit, label].
 export const SECTORS = [
   { id: 'arcadia', open: true, name: 'Arcadia Planitia', sub: 'Shallow ice · ready', lat: 39.25, lon: -163.5,
-    text: 'Flat northern plains with water ice tens of centimetres below the surface. SpaceX and NASA Ames candidate landing sites for the first crewed missions.' },
+    text: 'Flat northern plains with water ice tens of centimetres below the surface, and exposed volcanic rock in the south-east. NASA and SpaceX candidate landing sites for the first crewed missions.' },
   { id: 'jezero', name: 'Jezero Crater', sub: 'Perseverance · 2021', lat: 18.44, lon: 77.45,
     text: 'A crater that once held a lake, with a river delta spread across its western floor. NASA\'s Perseverance rover landed here in February 2021 and is collecting rock samples that could hold signs of ancient life; the Ingenuity helicopter flew here too.',
     facts: [['45', 'km', 'Crater width'], ['2021', '', 'Perseverance landed']] },

@@ -85,7 +85,7 @@ const unpack = (raw, { scale, offset }) => { const out = new Float32Array(raw.le
 const BLANK = 'data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==';
 // Terrain data loads in the background while you look around the world map
 const ICE_MIN = 0.25; // SWIM ice-consistency score treated as "ice likely" (strongest signal in this region)
-let meta, h, s, worker, layers = {}, hazards = {}, climate, targets = { ice: [], mineral: [], sites: [] }, overlays = {};
+let ready = false, meta, h, s, worker, layers = {}, hazards = {}, climate, targets = { ice: [], mineral: [], sites: [] }, overlays = {};
 const dataReady = (async () => {
   meta = await fetch('data/dem.json').then(r => r.json()).catch(() => null);
   if (!meta) return;
@@ -115,13 +115,18 @@ const dataReady = (async () => {
   if (hazards.loose) overlay('Loose or dusty ground (TES)', hazards.loose, v => [194, 122, 58, v * 170]);
   if (hazards.crater) overlay('Crater rims (Robbins catalog)', hazards.crater, v => [233, 237, 241, v > 0.3 ? v * 200 : 0]);
 
-  // Objectives. Ice: the strongest SWIM spots, one per patch. Minerals: sites in sites.json marked "mineral"
-  // (none yet: no mineral map is loaded for this region). Sites: landing sites and points of interest in the box.
+  if (layers.pyroxene) overlays.mineral = overlay('Pyroxene detected (OMEGA)', layers.pyroxene, v => (v > 0 ? [255, 181, 71, Math.min(1, 0.35 + (v - 0.01) / 0.03) * 210] : [0, 0, 0, 0]));
+
+  // Objectives. Ice: the strongest SWIM spots, one per patch. Minerals: the strongest OMEGA pyroxene detections
+  // (scripts/fetch_omega.py), plus any sites in sites.json marked "mineral". Sites: landing sites and points of interest.
   const inBox = ([la, lo]) => la >= a && la <= b && lo >= c && lo <= d;
   if (layers.ice) targets.ice = peaks(layers.ice, meta, { min: 0.3, sepKm: 50, margin: 8 }).map((t, k) =>
     ({ name: `Ice deposit ${k + 1}`, code: `I${k + 1}`, ll: t.ll, sym: SYM.iceTarget, detail: `ice score ${t.value.toFixed(2)}` }));
-  targets.mineral = named.filter(x => x.mineral && inBox([x.lat, x.lon])).map((x, k) =>
-    ({ name: x.name, code: `M${k + 1}`, ll: [x.lat, x.lon], sym: SYM.mineral, detail: x.mineral }));
+  targets.mineral = [
+    ...(layers.pyroxene ? peaks(layers.pyroxene, meta, { min: 0.02, sepKm: 25, margin: 8 }).map(t =>
+      ({ name: 'Pyroxene exposure', ll: t.ll, detail: `pyroxene index ${t.value.toFixed(3)}` })) : []),
+    ...named.filter(x => x.mineral && inBox([x.lat, x.lon])).map(x => ({ name: x.name, ll: [x.lat, x.lon], detail: x.mineral })),
+  ].map((x, k) => ({ ...x, name: `${x.name} ${k + 1}`, code: `M${k + 1}`, sym: SYM.mineral }));
   targets.sites = named.filter(x => !x.ref && !x.mineral && inBox([x.lat, x.lon])).map(x =>
     ({ name: x.name, code: x.code, ll: [x.lat, x.lon], sym: SYM[x.poi ? 'poi' : 'site'], detail: '' }));
   for (const t of [...targets.ice, ...targets.mineral])
@@ -129,7 +134,7 @@ const dataReady = (async () => {
       .on('click', () => pickTarget(t)).addTo(map);
 
   legendBox.innerHTML = [
-    [SYM.site, 'Candidate landing site'], [SYM.poi, 'Point of interest'], [SYM.iceTarget, 'Ice deposit (objective)'],
+    [SYM.site, 'Candidate landing site'], [SYM.poi, 'Point of interest'], [SYM.iceTarget, 'Ice deposit (objective)'], targets.mineral.length && [SYM.mineral, 'Pyroxene exposure (objective)'],
     [SYM.route, 'Safest route'], [SYM.hazard, 'Steepest point on route'], [SYM.extent, 'Sector data extent'],
     layers.ice && [SYM.ice, 'Ice likely within 1 m (SWIM)'], hazards.loose && [SYM.loose, 'Loose or dusty ground (TES)'],
     hazards.crater && [SYM.crater, 'Crater rim (Robbins catalog)'],
@@ -139,6 +144,7 @@ const dataReady = (async () => {
     `<option value="${i}">Month ${i + 1} (Ls ${r.ls}°), ${SEASONS[Math.floor(r.ls / 90)]}${r.dust_storm != null ? ', dust storm season' : ''}</option>`).join('');
   $('looseRow').hidden = !hazards.loose;
   $('craterRow').hidden = !hazards.crater;
+  ready = true;
 })();
 const SEASONS = ['northern spring', 'northern summer', 'northern autumn', 'northern winter'];
 $('crater').oninput = e => ($('craterv').textContent = `×${e.target.value}`);
@@ -156,14 +162,14 @@ async function selectSector(sec) {
   const stat = (v, u, t) => `<div><b>${v}<small>${u}</small></b><span>${t}</span></div>`;
   const body = () => `<div class="tag">Sector · ${sec.lat.toFixed(1)}°${sec.lat < 0 ? 'S' : 'N'} ${Math.abs(sec.lon).toFixed(1)}°${sec.lon < 0 ? 'W' : 'E'}</div>
     <h2>${sec.name}</h2><span class="status ${sec.open ? 'open' : 'locked'}">${sec.open ? 'Open' : 'Preview'}</span><p>${sec.text}</p>
-    ${sec.open && meta ? `<div class="grid">${stat(Math.round(AREA(meta.bounds) / 1000), 'k km²', 'Area mapped')}
+    ${sec.open && ready ? `<div class="grid">${stat(Math.round(AREA(meta.bounds) / 1000), 'k km²', 'Area mapped')}
       ${stat(targets.sites.length, '', 'Landing sites and stops')}${stat(targets.ice.length, '', 'Ice deposits')}
-      ${stat(targets.mineral.length || '—', '', 'Mineral sites')}</div>` : ''}
-    ${sec.open ? `<button id="enter" class="wide"${meta ? '' : ' disabled'}>${meta ? 'Enter sector ▶' : 'Loading terrain…'}</button>`
+      ${stat(targets.mineral.length || '—', '', 'Mineral targets')}</div>` : ''}
+    ${sec.open ? `<button id="enter" class="wide"${ready ? '' : ' disabled'}>${ready ? 'Enter sector ▶' : 'Loading terrain…'}</button>`
       : `${sec.facts ? `<div class="grid">${sec.facts.map(f => stat(...f)).join('')}</div>` : ''}<button class="wide alt" disabled>Coming soon</button>`}`;
   card.innerHTML = body();
   map.flyTo([sec.lat, sec.lon], Math.max(map.getZoom(), 3), { duration: 0.8 });
-  if (sec.open && !meta) { await dataReady; if (!card.hidden) card.innerHTML = body(); }
+  if (sec.open && !ready) { await dataReady; if (!card.hidden) card.innerHTML = body(); }
   $('enter')?.addEventListener('click', () => enterSector());
 }
 map.on('click', e => { if (mode === 'world' && !e.originalEvent.target.closest?.('.node')) { $('card').hidden = true; $('hint').hidden = false; } });
@@ -211,7 +217,7 @@ function readout() {
     const [r, c] = latLonCell(meta, lat, lng);
     if (r >= 0 && c >= 0 && r < meta.rows && c < meta.cols) {
       const i = r * meta.cols + c;
-      t += `\nELEV <b>${h[i].toFixed(0)} m</b>  SLOPE <b>${s[i].toFixed(1)}°</b>${layers.ice ? `  ICE <b>${layers.ice[i].toFixed(2)}</b>` : ''}`;
+      t += `\nELEV <b>${h[i].toFixed(0)} m</b>  SLOPE <b>${s[i].toFixed(1)}°</b>${layers.ice ? `  ICE <b>${layers.ice[i].toFixed(2)}</b>` : ''}${layers.pyroxene?.[i] > 0 ? `  PYX <b>${layers.pyroxene[i].toFixed(3)}</b>` : ''}`;
     }
   }
   $('readout').innerHTML = t;
@@ -252,7 +258,8 @@ function renderTargets() {
   const box = $('targets');
   box.innerHTML = tab === 'ice' ? list(targets.ice, layers.ice?.some(v => v >= ICE_MIN) ? '<button id="ice" class="alt wide">Nearest reachable ice from A</button>' : '')
     : tab === 'mineral' ? (targets.mineral.length ? list(targets.mineral)
-      : '<div class="locked-box"><b>Locked · no mineral survey</b>No mineral map is loaded for this sector yet, so mineral reserves can\'t be shown truthfully. Add mineral sites to public/sites.json with a "mineral" field (for example from CRISM or OMEGA maps) to unlock this objective.</div>')
+      : '<div class="locked-box"><b>Locked · no mineral survey</b>No mineral map is loaded for this sector yet. Run scripts/fetch_omega.py, or add mineral sites to public/sites.json with a "mineral" field.</div>')
+      + (layers.pyroxene ? '<p class="note">From the OMEGA orbiter\'s pyroxene map (Ody et al. 2012). Pyroxene is an iron and magnesium mineral of volcanic rock; here it shows where darker, less dusty rock is exposed, mostly in the south-east. The index is a spectral band depth, not an amount. OMEGA detected no olivine and no water-bearing minerals in this sector; the rest is mostly dust-covered.</p>' : '')
     : tab === 'sites' ? list(targets.sites)
     : '<div class="locked-box"><b>Custom pin</b>Click anywhere inside the green box to drop destination B. Drag the pin to adjust; the route updates.</div>';
   const arr = targets[tab] || [];
