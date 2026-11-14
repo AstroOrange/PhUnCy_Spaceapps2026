@@ -86,3 +86,18 @@ test('3D crop: keeps the route inside, shifts its cells, and places them at the 
   expect(cropGrid(h, m, [[0, 0]]).meta.bounds[1]).toBe(10); // clamped at the grid edge
   expect(cropGrid(h, m, []).h).toBe(h);
 });
+
+import { badTiles, FP } from '../src/tiles.js';
+
+test('imagery tiles: repeated pictures and flat grey tiles are dropped, real neighbours are kept', () => {
+  let seed = 1;
+  const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
+  const tile = f => { const gray = new Float32Array(FP * FP), alpha = new Uint8Array(FP * FP).fill(1); for (let i = 0; i < gray.length; i++) gray[i] = f(i % FP, (i / FP) | 0); return { gray, alpha }; };
+  const texA = tile(() => 100 + 60 * rnd()), texB = tile(() => 100 + 60 * rnd());
+  const copyA = { gray: texA.gray.map(v => v * 0.9 + 12 + 3 * rnd()), alpha: texA.alpha.slice() }; // same picture, re-encoded
+  copyA.alpha.fill(0, FP * FP * 0.6); // and with a no-data band, like the real repeats
+  const rampL = tile((c, r) => 60 + c * 2 + 8 * rnd()), rampR = tile((c, r) => 160 + c * 2 + 8 * rnd()); // neighbours with the same light trend
+  const flat = tile(() => 140), dust = tile(() => 140 + 5 * rnd()); // filler tile vs. real smooth dusty plain (std ~1.5)
+  const bad = badTiles([texA, texB, copyA, rampL, rampR, flat, null, dust]);
+  expect([...bad].sort()).toEqual([0, 2, 5]);
+});

@@ -106,7 +106,10 @@ Longitudes are -180..180 east (except `fetch_mcd.py`, which takes 0..360 east). 
 - Weather is a climate model for one point at the region centre, not a forecast. Dust storm values exist only in storm season (Ls 180 to 360).
 - Walk time assumes 1.5 to 3 km/h in a suit; it is an estimate, not a plan.
 - SpaceX site positions are HiRISE image centres, not exact landing points.
-- The CTX mosaic has gaps and brightness seams; around Erebus Montes one tile zoom level returns a repeated placeholder.
+- The CTX mosaic has gaps and brightness seams.
+- The CTX map server sometimes returns one picture for several different tiles (one crater repeated across the terrain), or flat grey
+  filler tiles. The 3D view fingerprints every tile it loads (`src/tiles.js`), drops repeats and filler, and shows imagery 8 times
+  coarser of the right place there; the number of dropped tiles is shown on screen. The 2D CTX layer comes straight from the server.
 
 ## AI assistance
 AI assistance (Claude Code) was used to write this code.

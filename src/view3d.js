@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { M_PER_DEG } from './geo.js';
+import { FP, fingerprint, badTiles } from './tiles.js';
 
 const MAX_VERTS = 500;
 
@@ -12,30 +13,44 @@ export function bilinear(h, { rows, cols }, r, c) {
   return (v(r0, c0) * (1 - fc) + v(r0, c1) * fc) * (1 - fr) + (v(r1, c0) * (1 - fc) + v(r1, c1) * fc) * fr;
 }
 
-// Real CTX imagery for the box, stitched from Mars Trek tiles and tinted Mars-red. Also returns its average colour.
-// Level 8 is skipped: around Erebus Montes the server returns one repeated placeholder tile there.
-async function imagery({ bounds: [latMin, latMax, lonMin, lonMax] }) {
-  let L = Math.min(11, Math.max(0, Math.floor(Math.log2(4096 * 360 / ((lonMax - lonMin) * 1024))))); // floor: texture stays within 4096 px
-  if (L === 8) L = 7;
-  const deg = 180 / 2 ** L, px = 512 / deg;
-  const x0 = Math.floor((lonMin + 180) / deg), x1 = Math.floor((lonMax + 180) / deg), y0 = Math.floor((90 - latMax) / deg), y1 = Math.floor((90 - latMin) / deg);
+// Real CTX imagery for the box, stitched from map tiles and tinted Mars-red. Also returns its average colour.
+// The CTX server sometimes sends one picture for several places, or flat grey "no data" tiles (src/tiles.js finds them).
+// So a coarser layer (8 times less detail) goes underneath, and bad sharp tiles are left out so the coarse imagery of the
+// right place shows through; transparent gaps in sharp tiles show it too. `dropped` counts the sharp tiles left out.
+const CTX = (L, y, x) => `https://astro.arcgis.com/arcgis/rest/services/OnMars/CTX/MapServer/tile/${L}/${y}/${x}`;
+function loadTiles(L, [latMin, latMax, lonMin, lonMax]) {
+  const deg = 180 / 2 ** L, list = [];
+  for (let y = Math.floor((90 - latMax) / deg); y <= Math.floor((90 - latMin) / deg); y++)
+    for (let x = Math.floor((lonMin + 180) / deg); x <= Math.floor((lonMax + 180) / deg); x++) list.push({ x, y, deg });
+  const fpCanvas = Object.assign(document.createElement('canvas'), { width: FP, height: FP }), fg = fpCanvas.getContext('2d', { willReadFrequently: true });
+  return Promise.all(list.map(t => new Promise(ok => {
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = () => {
+      fg.clearRect(0, 0, FP, FP); fg.drawImage(img, 0, 0, FP, FP);
+      ok({ ...t, img, fp: fingerprint(fg.getImageData(0, 0, FP, FP).data) });
+    };
+    img.onerror = () => ok({ ...t, img: null, fp: null });
+    img.src = CTX(L, t.y, t.x);
+  }))).then(tiles => { const bad = badTiles(tiles.map(t => t.fp)); return tiles.map((t, i) => ({ ...t, ok: !!t.img && !bad.has(i) })); });
+}
+async function imagery({ bounds }) {
+  const [latMin, latMax, lonMin, lonMax] = bounds;
+  const L = Math.min(11, Math.max(0, Math.floor(Math.log2(4096 * 360 / ((lonMax - lonMin) * 1024))))); // floor: texture stays within 4096 px
+  const px = 512 * 2 ** L / 180; // canvas pixels per degree
   const cv = Object.assign(document.createElement('canvas'), { width: Math.round((lonMax - lonMin) * px), height: Math.round((latMax - latMin) * px) });
   const g = cv.getContext('2d');
   g.fillStyle = '#8c8c8c'; g.fillRect(0, 0, cv.width, cv.height); // mosaic gaps
-  await Promise.all([...Array((y1 - y0 + 1) * (x1 - x0 + 1)).keys()].map(i => new Promise(ok => {
-    const x = x0 + i % (x1 - x0 + 1), y = y0 + Math.floor(i / (x1 - x0 + 1)), img = new Image();
-    img.crossOrigin = 'anonymous';
-    img.onload = () => { g.drawImage(img, (x * deg - 180 - lonMin) * px, (90 - y * deg - latMax) * -px, 512, 512); ok(); };
-    img.onerror = ok;
-    img.src = `https://astro.arcgis.com/arcgis/rest/services/OnMars/CTX/MapServer/tile/${L}/${y}/${x}`;
-  })));
+  const [coarse, sharp] = await Promise.all([loadTiles(Math.max(0, L - 3), bounds), loadTiles(L, bounds)]);
+  for (const t of [...coarse, ...sharp]) if (t.ok)
+    g.drawImage(t.img, (t.x * t.deg - 180 - lonMin) * px, (latMax - 90 + t.y * t.deg) * px, t.deg * px, t.deg * px);
   g.globalCompositeOperation = 'multiply'; g.fillStyle = '#f2b58e'; g.fillRect(0, 0, cv.width, cv.height);
   const one = Object.assign(document.createElement('canvas'), { width: 1, height: 1 }).getContext('2d');
   one.drawImage(cv, 0, 0, 1, 1);
   const [r, gr, b] = one.getImageData(0, 0, 1, 1).data;
   const tex = new THREE.CanvasTexture(cv);
   tex.colorSpace = THREE.SRGBColorSpace;
-  return { tex, avg: new THREE.Color(`rgb(${r},${gr},${b})`) };
+  return { tex, avg: new THREE.Color(`rgb(${r},${gr},${b})`), dropped: sharp.filter(t => !t.ok).length, total: sharp.length };
 }
 
 export function open3D(h, meta, path) {
@@ -127,7 +142,8 @@ export function open3D(h, meta, path) {
   renderer.toneMappingExposure = 1.15;
   renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
   box.prepend(renderer.domElement);
-  imagery(meta).then(({ tex, avg }) => {
+  imagery(meta).then(({ tex, avg, dropped, total }) => {
+    if (dropped) box.querySelector('p').insertAdjacentText('beforeend', ` ${dropped} of ${total} sharp imagery tiles were missing or repeated on the server; blurrier imagery of the same place is shown there.`);
     tex.anisotropy = renderer.capabilities.getMaxAnisotropy(); // keeps the photo sharp at low viewing angles
     mat.map = tex; mat.color.set('#fff'); mat.needsUpdate = true;
     floorMat.color.copy(avg);
