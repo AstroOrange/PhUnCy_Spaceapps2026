@@ -44,7 +44,7 @@ const named = sites.filter(s => s.lat != null && s.lon != null);
 let n = 0, p = 0;
 for (const s of named) s.code = s.ref ? '' : s.poi ? `P${++p}` : `S${++n}`;
 
-const map = L.map('map', { crs: L.CRS.EPSG4326, layers: [mola] }).setView([35.66, -174.98], 6);
+const map = L.map('map', { crs: L.CRS.EPSG4326, layers: [mola] }).setView([18.25, -24.5], 7);
 map.attributionControl.setPrefix('<a href="https://leafletjs.com">Leaflet</a>');
 const layerControl = L.control.layers({ 'Relief (MOLA)': mola, 'Imagery (CTX)': ctx }).addTo(map);
 for (const s of named)
@@ -84,7 +84,7 @@ if (meta) {
   if (hazards.loose) overlay('Loose or dusty ground (TES)', hazards.loose, v => [176, 104, 40, v * 170]);
   if (hazards.crater) overlay('Crater rims (Robbins catalog)', hazards.crater, v => [0, 0, 0, v > 0.3 ? v * 200 : 0]);
 } else msg('No elevation data yet: run scripts/prep_dem.py (see README).');
-$('ice').hidden = !layers.ice;
+$('ice').hidden = !layers.ice?.some(v => v >= ICE_MIN); // hide where no cell reaches the likely-ice score
 // Seasonal weather table from scripts/fetch_mcd.py (Mars Climate Database)
 const climate = await fetch('data/climate.json').then(r => r.json()).catch(() => null);
 const SEASONS = ['northern spring', 'northern summer', 'northern autumn', 'northern winter'];
@@ -175,7 +175,7 @@ function marswalk(km) {
   return `<p class="kicker">Marswalk plan, estimated (2 astronauts, ${m.label})</p><div class="stats">
     ${stat(back.toFixed(0), 'km', 'Out and back')}${stat(`${fast.toFixed(1)}-${slow.toFixed(1)}`, 'h', `Out and back at ${m.v[0]} to ${m.v[1]} km/h`)}
     ${stat(reach.toFixed(0), 'km', `Furthest target for a ${eva} h EVA (slow pace)`)}${stat((Math.min(slow, eva) * DOSE_PER_H).toFixed(2), 'mSv', 'Radiation dose outside, this EVA')}</div>
-    <p class="note">${fit} Astronauts move as a pair, so the plan uses the slower walker's pace. Radiation is from Curiosity's surface measurements; Arcadia is lower, so its thicker air shields slightly more.</p>`;
+    <p class="note">${fit} Astronauts move as a pair, so the plan uses the slower walker's pace. Radiation is from Curiosity's surface measurements; higher ground has thinner air and gets slightly more.</p>`;
 }
 
 let line, steep, chart, lastPath;

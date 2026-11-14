@@ -1,103 +1,103 @@
 {
  "source": "Mars Climate Database v6.2, LMD/OU/IAA/ESA/CNES (climatology average solar; dust storm average solar)",
- "lat": 39.25,
- "lon_east": 193.0,
+ "lat": 18.25,
+ "lon_east": 335.5,
  "rows": [
   {
    "ls": 0,
-   "dust": 0.44,
+   "dust": 0.51,
    "dust_storm": null,
-   "t_day": -16,
-   "t_night": -105,
-   "wind": 4.7
+   "t_day": -4,
+   "t_night": -82,
+   "wind": 6.4
   },
   {
    "ls": 30,
-   "dust": 0.33,
+   "dust": 0.42,
    "dust_storm": null,
-   "t_day": -5,
-   "t_night": -100,
-   "wind": 3.4
+   "t_day": -3,
+   "t_night": -81,
+   "wind": 5.3
   },
   {
    "ls": 60,
-   "dust": 0.35,
+   "dust": 0.41,
    "dust_storm": null,
-   "t_day": 0,
-   "t_night": -97,
-   "wind": 4.3
+   "t_day": -4,
+   "t_night": -79,
+   "wind": 6.4
   },
   {
    "ls": 90,
-   "dust": 0.28,
+   "dust": 0.29,
    "dust_storm": null,
-   "t_day": 3,
-   "t_night": -95,
-   "wind": 5.9
+   "t_day": -2,
+   "t_night": -78,
+   "wind": 7.1
   },
   {
    "ls": 120,
-   "dust": 0.26,
+   "dust": 0.27,
    "dust_storm": null,
-   "t_day": 5,
-   "t_night": -95,
-   "wind": 5.4
+   "t_day": 2,
+   "t_night": -78,
+   "wind": 6.0
   },
   {
    "ls": 150,
-   "dust": 0.36,
+   "dust": 0.4,
    "dust_storm": null,
-   "t_day": 4,
-   "t_night": -97,
-   "wind": 4.2
+   "t_day": 6,
+   "t_night": -78,
+   "wind": 6.7
   },
   {
    "ls": 180,
-   "dust": 0.29,
+   "dust": 0.43,
    "dust_storm": null,
-   "t_day": -4,
-   "t_night": -101,
-   "wind": 4.5
+   "t_day": 7,
+   "t_night": -79,
+   "wind": 8.6
   },
   {
    "ls": 210,
-   "dust": 0.51,
+   "dust": 0.7,
    "dust_storm": 5.0,
-   "t_day": -23,
-   "t_night": -105,
-   "wind": 5.5
+   "t_day": 1,
+   "t_night": -78,
+   "wind": 9.8
   },
   {
    "ls": 240,
-   "dust": 0.96,
+   "dust": 1.23,
    "dust_storm": 5.0,
-   "t_day": -45,
-   "t_night": -109,
-   "wind": 3.5
+   "t_day": -10,
+   "t_night": -79,
+   "wind": 11.8
   },
   {
    "ls": 270,
-   "dust": 0.66,
+   "dust": 1.01,
    "dust_storm": 5.0,
-   "t_day": -54,
-   "t_night": -111,
-   "wind": 1.8
+   "t_day": -16,
+   "t_night": -83,
+   "wind": 13.4
   },
   {
    "ls": 300,
-   "dust": 0.44,
+   "dust": 0.68,
    "dust_storm": 5.0,
-   "t_day": -47,
-   "t_night": -112,
-   "wind": 2.3
+   "t_day": -14,
+   "t_night": -84,
+   "wind": 12.3
   },
   {
    "ls": 330,
-   "dust": 0.77,
+   "dust": 1.0,
    "dust_storm": 5.0,
-   "t_day": -32,
-   "t_night": -109,
-   "wind": 4.6
+   "t_day": -8,
+   "t_night": -82,
+   "wind": 10.4
   }
  ]
 }
