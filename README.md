@@ -18,6 +18,10 @@ Demo region: SpaceX's Starship candidate sites in the Arcadia region (37.5°N to
   out-and-back trip fits one EVA, gives the furthest reachable target, and estimates the radiation dose outside
   (Curiosity RAD surface rate, about 0.67 mSv/day). Speeds are assumptions: 1.5-3 km/h on foot, 5-10 km/h by rover.
 - Science stops: add any number of stops; the route goes A -> stops -> B, leg by leg.
+- Go (simulated navigation): an astronaut marker moves along the route at the slower planned speed (about 60 s
+  for the whole trip), with distance and direction to the next stop, EVA time used and left, radiation so far,
+  hazards in the next 1 km, and a turn-back alert. Position is simulated: Mars has no GPS, so a real mission
+  would use suit or rover motion tracking and camera matching to orbital maps.
 - Site popups link to the HiRISE close-ups; the panel lists the data types used (topographic, optical, thermal,
   spectral, geophysical, atmospheric, radiation, geologic).
 - Summary: distance, climb/descent, steepest slope with a map marker (Measured, from MOLA); walking time, loose ground,

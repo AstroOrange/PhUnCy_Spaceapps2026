@@ -16,7 +16,7 @@
     header { display: flex; justify-content: space-between; align-items: flex-end; gap: 16px; padding: 14px 20px 10px; border-bottom: 4px solid var(--ink); }
     header h1 { margin: 0; font: 700 30px/0.95 var(--narrow); letter-spacing: -0.5px; }
     header p { margin: 0; font-size: 12px; text-align: right; }
-    main { flex: 1; display: flex; min-height: 0; }
+    main { flex: 1; display: flex; min-height: 0; position: relative; }
     #map { flex: 1; background: var(--paper); }
     aside { width: 340px; overflow: auto; border-left: 1px solid var(--ink); }
     aside section { padding: 16px 20px 4px; }
@@ -36,6 +36,12 @@
     button:disabled { opacity: .5; cursor: wait; }
     #go { flex: 1; }
     #ice { width: 100%; margin-top: 8px; }
+    #nav { position: absolute; top: 12px; left: 60px; z-index: 1000; width: min(440px, calc(100% - 420px)); background: var(--ink); color: var(--paper); padding: 10px 14px; }
+    #nav .next b { font: 700 40px/1 var(--narrow); } #nav .next small { font-size: 16px; margin-left: 3px; }
+    #nav .next span { display: block; font-size: 14px; margin-top: 2px; }
+    #nav .row { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 12px; margin-top: 6px; }
+    #nav .warn { margin-top: 6px; padding: 4px 8px; background: var(--orange); font-size: 13px; font-weight: 700; }
+    .me { background: var(--orange); border: 3px solid var(--paper); border-radius: 50%; box-shadow: 0 0 0 2px var(--ink); }
     #addStop.on { background: var(--orange); border-color: var(--orange); color: var(--paper); }
     .pin.stop { background: var(--orange); color: var(--paper); border-color: var(--ink); }
     .sources table { width: 100%; border-collapse: collapse; font-size: 12px; }
@@ -75,6 +81,7 @@
       main { flex-direction: column; } #map { flex: none; height: 55vh; }
       aside { width: auto; border-left: 0; overflow: visible; }
       header p { display: none; }
+      #nav { left: 12px; right: 12px; width: auto; top: 70px; }
     }
   </style>
 </head>
@@ -85,6 +92,7 @@
   </header>
   <main>
     <div id="map"></div>
+    <div id="nav" hidden></div>
     <aside>
       <section>
         <h2>Route</h2>
@@ -101,7 +109,7 @@
         <input id="loose" type="range" value="1" min="0" max="3" step="0.5" /></div>
         <div id="craterRow"><label for="crater">Crater rim penalty <output id="craterv">×1</output></label>
         <input id="crater" type="range" value="1" min="0" max="3" step="0.5" /></div>
-        <div class="buttons"><button id="go">Find safest route</button><button id="v3d" class="alt">3D view</button></div>
+        <div class="buttons"><button id="go">Find safest route</button><button id="navGo" class="alt" hidden>Go</button><button id="v3d" class="alt">3D view</button></div>
         <button id="ice" class="alt">Route from A to the nearest likely ice</button>
       </section>
       <section><h2>Summary</h2><div id="summary"><p class="note">No route yet.</p></div></section>

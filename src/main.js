@@ -135,10 +135,12 @@ async function run(toIce) {
   $('go').disabled = $('ice').disabled = true;
   const base = { opts: { maxSlope: +$('max').value }, weights: { loose: +$('loose').value, crater: +$('crater').value } };
   let path = [];
-  if (toIce) path = await ask({ ...base, start: cells[0], end: null, iceMin: ICE_MIN });
+  legEnds = [];
+  if (toIce) { path = await ask({ ...base, start: cells[0], end: null, iceMin: ICE_MIN }); if (path) legEnds.push(path.length - 1); }
   else for (let i = 0; i + 1 < cells.length && path; i++) { // one leg per pair of points: A, stops, B
     const leg = await ask({ ...base, start: cells[i], end: cells[i + 1] });
     path = leg && path.concat(i ? leg.slice(1) : leg);
+    if (path) legEnds.push(path.length - 1);
   }
   show(path, toIce);
 }
@@ -180,13 +182,14 @@ let line, steep, chart, lastPath;
 function show(path, toIce) {
   lastPath = path;
   $('go').disabled = $('ice').disabled = false;
-  line?.remove(); steep?.remove(); chart?.destroy();
+  line?.remove(); steep?.remove(); chart?.destroy(); stopNav(); trip = null; $('nav').hidden = true;
   $('chartBox').hidden = !path;
   if (!path) return msg(toIce ? `No likely ice can be reached while staying under ${$('max').value}°.`
     : `No route stays under ${$('max').value}°. Allow a steeper slope or pick other points.`);
   const ll = path.map(([r, c]) => cellLatLon(meta, r, c)), idx = path.map(([r, c]) => r * meta.cols + c);
   if (toIce) { $('end').value = ''; setPt(1, ll.at(-1)); }
   let dist = 0, gain = 0, loss = 0, unknown = 0, looseN = 0, rimN = 0, maxS = -1, maxJ = 0;
+  const cum = [];
   const prof = idx.map((i, j) => {
     if (j) {
       dist += haversine(...ll[j - 1], ...ll[j]);
@@ -197,9 +200,13 @@ function show(path, toIce) {
     if (hazards.loose?.[i] > 0.5) looseN++;
     if (hazards.crater?.[i] > 0.5) rimN++;
     if (s[i] > maxS) { maxS = s[i]; maxJ = j; }
+    cum.push(dist);
     return { x: dist / 1000, y: h[i] };
   });
   line = L.layerGroup([L.polyline(ll, { color: '#fff', weight: 7 }), L.polyline(ll, { color: '#f04e23', weight: 3.5 })]).addTo(map);
+  const ends = legEnds.length ? legEnds : [idx.length - 1];
+  trip = { ll, idx, cum, ends, names: ends.map((_, k) => (k === ends.length - 1 ? (toIce ? 'the ice' : 'B') : `stop ${k + 1}`)) };
+  $('navGo').hidden = false;
   steep = L.marker(ll[maxJ], { icon: icon(SYM.hazard, 'hazard') }).bindPopup(`Steepest point on the route: ${maxS.toFixed(0)}°`).addTo(map);
   const km = dist / 1000, r10 = v => Math.round(v / 10) * 10;
   const stat = (v, u, t, wide) => `<div class="stat${wide ? ' wide' : ''}"><b>${v}<small>${u}</small></b><span>${t}</span></div>`;
@@ -225,6 +232,64 @@ function show(path, toIce) {
         y: { ticks: { callback: v => `${v} m` } } } },
   });
 }
+
+// Simulated navigation ("Go"): an astronaut marker moves along the route at the slower planned speed,
+// about 60 s for the whole trip. Real missions would get position from suit or rover motion tracking
+// and camera matching to orbital maps, since Mars has no GPS.
+let trip = null, nav = null, legEnds = [];
+const DIRS = ['north', 'north-east', 'east', 'south-east', 'south', 'south-west', 'west', 'north-west'];
+function bearing([la1, lo1], [la2, lo2]) {
+  const y = (lo2 - lo1) * Math.cos((la1 + la2) * Math.PI / 360), x = la2 - la1;
+  return DIRS[Math.round(((Math.atan2(y, x) * 180 / Math.PI + 360) % 360) / 45) % 8];
+}
+function at(d) { // position and path index at distance d (m) along the route
+  const c = trip.cum;
+  let j = 1;
+  while (j < c.length - 1 && c[j] < d) j++;
+  const f = Math.min(1, Math.max(0, (d - c[j - 1]) / (c[j] - c[j - 1] || 1))), [a, b] = [trip.ll[j - 1], trip.ll[j]];
+  return { ll: [a[0] + (b[0] - a[0]) * f, a[1] + (b[1] - a[1]) * f], j };
+}
+function stopNav() {
+  if (nav) cancelAnimationFrame(nav.raf), nav.me.remove();
+  nav = null;
+  $('navGo').textContent = 'Go';
+}
+function startNav() {
+  if (!trip) return;
+  const m = MODES[$('mode').value], v = m.v[0] * 1000, eva = +$('eva').value, total = trip.cum.at(-1);
+  map.fitBounds(L.latLngBounds(trip.ll).pad(0.4), { animate: false }); // zoom to the route so the walk is visible
+  const me = L.marker(trip.ll[0], { icon: icon('', 'me', 16), zIndexOffset: 2000 }).addTo(map);
+  nav = { me, t0: performance.now(), scale: Math.max(total / v, 0.05) * 3600 / 60 }; // sim seconds per real second
+  $('navGo').textContent = 'Stop';
+  $('nav').hidden = false;
+  const tick = now => {
+    const hrs = ((now - nav.t0) / 1000) * nav.scale / 3600, d = Math.min(total, hrs * v), pos = at(d);
+    nav.me.setLatLng(pos.ll);
+    if (!map.getBounds().pad(-0.2).contains(pos.ll)) map.panTo(pos.ll, { animate: false });
+    const leg = trip.ends.findIndex(e => e >= pos.j), endD = trip.cum[trip.ends[leg]], name = trip.names[leg];
+    const ahead = at(Math.min(total, d + 300)).ll;
+    // look 1 km ahead for hazards
+    let warn = '';
+    for (let k = pos.j; k < trip.idx.length && trip.cum[k] - d < 1000; k++) {
+      const i = trip.idx[k], inM = Math.max(0, Math.round((trip.cum[k] - d) / 100) * 100);
+      if (s[i] > 0.7 * +$('max').value) { warn = `Steep ground in ${inM} m (${s[i].toFixed(0)}°)`; break; }
+      if (hazards.crater?.[i] > 0.5) { warn = `Crater rim in ${inM} m`; break; }
+      if (hazards.loose?.[i] > 0.7) { warn = `Loose ground in ${inM} m`; break; }
+    }
+    const back = d / v; // hours to walk back to the start the same way
+    const turn = hrs + back >= eva ? 'Turn back now: the walk home uses the rest of your EVA.'
+      : hrs + back >= 0.85 * eva ? `Turn back within ${((eva - hrs - back) * 60 / 2).toFixed(0)} min to get home in time.` : '';
+    $('nav').innerHTML = `<div class="next"><b>${((endD - d) / 1000).toFixed(1)}<small>km</small></b>
+      <span>to ${name}${d < total ? `, head ${bearing(pos.ll, ahead)}` : ''}</span></div>
+      <div class="row"><span>EVA ${hrs.toFixed(1)} h used, ${Math.max(0, eva - hrs).toFixed(1)} h left</span><span>${(hrs * DOSE_PER_H).toFixed(2)} mSv</span><span>${(d / 1000).toFixed(1)} of ${(total / 1000).toFixed(1)} km</span></div>
+      ${warn ? `<div class="warn">Ahead: ${warn}</div>` : ''}${turn ? `<div class="warn">${turn}</div>` : ''}
+      ${d >= total ? `<div class="row"><span>Arrived at ${trip.names.at(-1)}. Simulated position, not GPS.</span></div>` : ''}`;
+    if (d < total) nav.raf = requestAnimationFrame(tick);
+    else $('navGo').textContent = 'Go';
+  };
+  nav.raf = requestAnimationFrame(tick);
+}
+$('navGo').onclick = () => (nav && $('navGo').textContent === 'Stop' ? stopNav() : (stopNav(), startNav()));
 
 $('v3d').onclick = async () => meta && (await import('./view3d.js')).open3D(h, meta, lastPath);
 
