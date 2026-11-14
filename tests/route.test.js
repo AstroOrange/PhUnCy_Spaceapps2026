@@ -38,3 +38,16 @@ test('A*: prefers known ground over a no-data cell', () => {
 test('A*: returns null when the wall is complete', () => {
   expect(run(['..X..', '..X..', '..X..', '..X..', '..X..'])).toBeNull();
 });
+
+test('A*: with a goal mask, stops at the nearest goal cell', () => {
+  const g = grid(['.....', '.....', '.....', '.....', '.....']);
+  const goal = new Uint8Array(25); goal[2 * 5 + 4] = 1; goal[0] = 1; // (2,4) is 4 steps away, (0,0) is 2
+  const p = astar(g.h, g.s, g.meta, [2, 0], null, { goal });
+  expect(p.at(-1)).toEqual([0, 0]);
+});
+
+test('A*: extra cost steers around an expensive cell', () => {
+  const g = grid(['.....', '.....', '.....', '.....', '.....']);
+  const extra = new Float32Array(25); extra[2 * 5 + 2] = 10;
+  expect(astar(g.h, g.s, g.meta, [2, 0], [2, 4], { extra })).not.toContainEqual([2, 2]);
+});
