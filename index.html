@@ -4,11 +4,12 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta name="theme-color" content="#07090c" />
+  <link rel="preconnect" href="https://trek.nasa.gov" crossorigin />
   <link rel="icon" href="icon.svg" />
   <title>Martian Map</title>
   <style>
     :root {
-      --bg: #07090c; --panel: rgba(10, 13, 17, .9); --line: rgba(255, 255, 255, .14); --text: #e9edf1; --dim: #8b97a3;
+      --bg: #07090c; --panel: rgba(10, 13, 17, .94); --line: rgba(255, 255, 255, .14); --text: #e9edf1; --dim: #8b97a3;
       --orange: #ff6a2b; --cyan: #3fd4ff; --amber: #ffb547; --green: #7dffa8; --lock: #5d6670;
       --narrow: 'Archivo Narrow', 'Arial Narrow', sans-serif; --mono: ui-monospace, 'SF Mono', Consolas, monospace;
     }
@@ -19,8 +20,7 @@
     a { color: var(--cyan); text-underline-offset: 2px; }
     #map { position: fixed; inset: 0; background: var(--bg); }
     .vignette { position: fixed; inset: 0; pointer-events: none; z-index: 400;
-      background: radial-gradient(ellipse at center, transparent 55%, rgba(0,0,0,.65) 100%),
-                  repeating-linear-gradient(0deg, rgba(255,255,255,.018) 0 1px, transparent 1px 3px); }
+      background: radial-gradient(ellipse at center, transparent 55%, rgba(0,0,0,.6) 100%); }
 
     /* HUD frame */
     .hud { position: fixed; z-index: 1000; }
@@ -40,7 +40,7 @@
     @keyframes breathe { 50% { opacity: .45; } }
 
     /* Panels */
-    .panel { background: var(--panel); border: 1px solid var(--line); backdrop-filter: blur(6px); }
+    .panel { background: var(--panel); border: 1px solid var(--line); }
     .panel::before, .panel::after { content: ''; position: absolute; width: 14px; height: 14px; border: 2px solid var(--orange); }
     .panel::before { top: -2px; left: -2px; border-right: 0; border-bottom: 0; }
     .panel::after { bottom: -2px; right: -2px; border-left: 0; border-top: 0; }
@@ -115,7 +115,6 @@
     #nav .warn { margin-top: 6px; padding: 4px 8px; background: var(--orange); color: #000; font-size: 13px; font-weight: 700; }
 
     /* Map */
-    .relief { filter: saturate(1.15) brightness(.82) contrast(1.05); }
     #map.leaflet-container { font: 12px Archivo, Arial, sans-serif; background: var(--bg); }
     #map .leaflet-bar, #map .leaflet-control-layers { border: 1px solid var(--line) !important; border-radius: 0 !important; box-shadow: none !important; background: var(--panel) !important; color: var(--text); }
     #map .leaflet-bar a { color: var(--text) !important; background: transparent !important; border-radius: 0 !important; border-color: var(--line) !important; }
@@ -129,7 +128,7 @@
     .legend { background: var(--panel); padding: 8px 10px; font-size: 11px; line-height: 1.8; border: 1px solid var(--line); color: var(--text); }
     .sym { display: inline-block; width: 14px; text-align: center; margin-right: 6px; }
     .sym svg { vertical-align: -1px; }
-    .mk svg, .hazard svg { display: block; filter: drop-shadow(0 0 3px rgba(0,0,0,.9)); }
+    .mk svg, .hazard svg { display: block; }
     .mk b { position: absolute; left: 16px; top: -1px; font: 700 11px var(--narrow); letter-spacing: .5px; white-space: nowrap; color: var(--text);
             text-shadow: 0 0 3px #000, 0 0 3px #000, 0 0 5px #000; }
     .pin { border-radius: 50%; font: 700 10px/16px Archivo, Arial, sans-serif; text-align: center; border: 1px solid #000; box-shadow: 0 0 8px rgba(0,0,0,.8); }
@@ -137,7 +136,6 @@
     .pin.stop { background: var(--amber); color: #000; }
     .leaflet-marker-draggable.pin { cursor: grab; }
     .me { background: var(--orange); border: 3px solid var(--text); border-radius: 50%; box-shadow: 0 0 12px var(--orange); }
-    .route-glow { filter: drop-shadow(0 0 6px rgba(255,106,43,.9)); }
     /* World: sector nodes and labels */
     .node { position: relative; }
     .node .ring { position: absolute; inset: 0; border: 2px solid var(--c); border-radius: 50%; }
@@ -154,10 +152,11 @@
     .node.on .core { background: var(--text); }
     .feature { font: 700 11px var(--narrow); letter-spacing: 3px; text-transform: uppercase; color: rgba(255,255,255,.55);
                text-shadow: 0 0 4px #000; white-space: nowrap; transform: translate(-50%, -50%); pointer-events: none; }
-    .sector-box { filter: drop-shadow(0 0 6px rgba(125,255,168,.8)); }
     /* 3D overlay */
     #view3d { position: fixed; inset: 0; z-index: 2000; background: #2a1a14; }
     #view3d button { position: absolute; top: 14px; left: 14px; }
+    #view3d .tag3d { position: absolute; top: 22px; left: 50%; transform: translateX(-50%); font: 700 13px var(--narrow); letter-spacing: 3px;
+                     text-transform: uppercase; color: #fff; text-shadow: 0 1px 3px #000; }
     #view3d p { position: absolute; left: 14px; bottom: 12px; margin: 0; font-size: 12px; color: #fff; text-shadow: 0 1px 2px #000; }
     @media (max-width: 760px) {
       #readout { display: none; }
@@ -201,7 +200,7 @@
       </div>
       <div id="targets"></div>
 
-      <div class="buttons"><button id="go">Plot route</button><button id="navGo" class="alt" hidden>Go</button><button id="v3d" class="alt">3D</button></div>
+      <div class="buttons"><button id="go">Plot route</button><button id="navGo" class="alt" hidden>Go</button><button id="v3d" class="alt" title="3D view of the local area around your route">3D view</button></div>
 
       <div id="summaryBox"><h3><i>03</i>Route report</h3><div id="summary"><p class="note">No route yet.</p></div></div>
       <section id="chartBox" hidden><h3>Elevation profile</h3><canvas id="profile" height="150"></canvas></section>

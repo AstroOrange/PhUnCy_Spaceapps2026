@@ -71,3 +71,18 @@ test('targets: strongest spots first, spaced apart, below-threshold cells ignore
   expect(t.map(x => x.value.toFixed(1))).toEqual(['0.9', '0.7']); // cell 1 is next to cell 0, so it is merged
   expect(t[1].cell).toEqual([9, 9]);
 });
+
+import { cropGrid, cellLatLon } from '../src/geo.js';
+
+test('3D crop: keeps the route inside, shifts its cells, and places them at the same lat/lon', () => {
+  const m = { bounds: [0, 10, 0, 20], rows: 100, cols: 200 }, h = new Float32Array(100 * 200).map((_, i) => i);
+  const route = [[40, 50], [45, 70]];
+  const c = cropGrid(h, m, route, { minPad: 5, minSize: 10 });
+  expect(c.meta.rows * c.meta.cols).toBe(c.h.length);
+  c.cells.forEach(([r, col], k) => {
+    expect(c.h[r * c.meta.cols + col]).toBe(h[route[k][0] * 200 + route[k][1]]);
+    cellLatLon(c.meta, r, col).forEach((v, j) => expect(v).toBeCloseTo(cellLatLon(m, ...route[k])[j], 9));
+  });
+  expect(cropGrid(h, m, [[0, 0]]).meta.bounds[1]).toBe(10); // clamped at the grid edge
+  expect(cropGrid(h, m, []).h).toBe(h);
+});

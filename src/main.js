@@ -5,7 +5,7 @@ import '@fontsource/archivo/latin-500.css';
 import '@fontsource/archivo/latin-700.css';
 import '@fontsource/archivo-narrow/latin-700.css';
 import Chart from 'chart.js/auto';
-import { haversine, cellLatLon, latLonCell } from './geo.js';
+import { haversine, cellLatLon, latLonCell, cropGrid } from './geo.js';
 import { hazardGrids } from './hazards.js';
 import { peaks } from './targets.js';
 import { SECTORS, FEATURES } from './hub.js';
@@ -21,10 +21,10 @@ Object.assign(Chart.defaults.plugins.tooltip, { backgroundColor: '#0a0d11', titl
 // MOLA = 256px .jpg on trek.nasa.gov; CTX = 512px .png redirected to astro.arcgis.com (2x1 tiles at level 0).
 const mola = L.tileLayer(
   'https://trek.nasa.gov/tiles/Mars/EQ/Mars_MGS_MOLA_ClrShade_merge_global_463m/1.0.0/default/default028mm/{z}/{y}/{x}.jpg',
-  { maxNativeZoom: 7, maxZoom: 12, crossOrigin: true, className: 'relief', attribution: 'NASA Mars Trek, USGS MOLA' });
+  { maxNativeZoom: 7, maxZoom: 12, crossOrigin: true, keepBuffer: 4, updateWhenZooming: false, attribution: 'NASA Mars Trek, USGS MOLA' });
 const ctx = L.tileLayer(
   'https://astro.arcgis.com/arcgis/rest/services/OnMars/CTX/MapServer/tile/{z}/{y}/{x}',
-  { tileSize: 512, zoomOffset: -1, minZoom: 1, maxNativeZoom: 12, maxZoom: 12, crossOrigin: true, attribution: 'NASA Mars Trek, CTX (Caltech)' });
+  { tileSize: 512, zoomOffset: -1, minZoom: 1, maxNativeZoom: 12, maxZoom: 12, crossOrigin: true, keepBuffer: 4, updateWhenZooming: false, attribution: 'NASA Mars Trek, CTX (Caltech)' });
 
 // Map symbols
 const svg = body => `<svg width="12" height="12" viewBox="0 0 12 12">${body}</svg>`;
@@ -80,13 +80,16 @@ for (const sec of SECTORS) {
     .on('click', () => selectSector(sec)).addTo(world);
 }
 
+// Packed Int16 grids from scripts/gridpack.py: value = raw * scale + offset, -32768 = no data
+const unpack = (raw, { scale, offset }) => { const out = new Float32Array(raw.length); for (let i = 0; i < raw.length; i++) out[i] = raw[i] === -32768 ? NaN : raw[i] * scale + offset; return out; };
+const BLANK = 'data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==';
 // Terrain data loads in the background while you look around the world map
 const ICE_MIN = 0.25; // SWIM ice-consistency score treated as "ice likely" (strongest signal in this region)
-let meta, h, s, worker, layers = {}, hazards = {}, climate, targets = { ice: [], mineral: [], sites: [] };
+let meta, h, s, worker, layers = {}, hazards = {}, climate, targets = { ice: [], mineral: [], sites: [] }, overlays = {};
 const dataReady = (async () => {
   meta = await fetch('data/dem.json').then(r => r.json()).catch(() => null);
   if (!meta) return;
-  const bin = f => fetch(`data/${f}.bin`).then(r => r.arrayBuffer()).then(b => new Float32Array(b));
+  const bin = f => fetch(`data/${f}.i16`).then(r => r.arrayBuffer()).then(b => unpack(new Int16Array(b), meta.packed[f]));
   [h, s] = await Promise.all([bin('dem'), bin('slope')]);
   layers = Object.fromEntries(await Promise.all((meta.layers || []).map(async n => [n, await bin(n)])));
   hazards = hazardGrids(layers);
@@ -95,15 +98,20 @@ const dataReady = (async () => {
   worker.postMessage({ h, s, meta, layers });
   const [a, b, c, d] = meta.bounds;
   L.rectangle([[a, c], [b, d]], { color: '#7dffa8', weight: 1.5, dashArray: '5 4', fill: true, fillOpacity: 0.06, interactive: false, className: 'sector-box' }).addTo(map);
-  // Data layers drawn from the grid, toggled from the layer menu
+  // Data layers drawn from the grid, toggled from the layer menu. Each image is only drawn the first time it is shown.
   const overlay = (label, grid, rgba) => {
-    const cv = Object.assign(document.createElement('canvas'), { width: meta.cols, height: meta.rows }), g = cv.getContext('2d');
-    const img = g.createImageData(meta.cols, meta.rows);
-    grid.forEach((v, i) => img.data.set(rgba(v), i * 4));
-    g.putImageData(img, 0, 0);
-    layerControl.addOverlay(L.imageOverlay(cv.toDataURL(), [[a, c], [b, d]], { pane: 'sectorLines' }), label);
+    const layer = L.imageOverlay(BLANK, [[a, c], [b, d]], { pane: 'sectorLines' });
+    layer.once('add', () => {
+      const cv = Object.assign(document.createElement('canvas'), { width: meta.cols, height: meta.rows }), g = cv.getContext('2d');
+      const img = g.createImageData(meta.cols, meta.rows), px = new Uint32Array(img.data.buffer);
+      for (let i = 0; i < grid.length; i++) { const [r, gr, bl, al] = rgba(grid[i]); px[i] = (al << 24) | (bl << 16) | (gr << 8) | r; }
+      g.putImageData(img, 0, 0);
+      cv.toBlob(blob => layer.setUrl(URL.createObjectURL(blob)));
+    });
+    layerControl.addOverlay(layer, label);
+    return layer;
   };
-  if (layers.ice) overlay('Ice likely within 1 m (SWIM)', layers.ice, v => (v > 0 ? [63, 212, 255, Math.min(1, v / 0.35) * 170] : [0, 0, 0, 0]));
+  if (layers.ice) overlays.ice = overlay('Ice likely within 1 m (SWIM)', layers.ice, v => (v > 0 ? [63, 212, 255, Math.min(1, v / 0.35) * 170] : [0, 0, 0, 0]));
   if (hazards.loose) overlay('Loose or dusty ground (TES)', hazards.loose, v => [194, 122, 58, v * 170]);
   if (hazards.crater) overlay('Crater rims (Robbins catalog)', hazards.crater, v => [233, 237, 241, v > 0.3 ? v * 200 : 0]);
 
@@ -147,12 +155,12 @@ async function selectSector(sec) {
   $('hint').hidden = true;
   const stat = (v, u, t) => `<div><b>${v}<small>${u}</small></b><span>${t}</span></div>`;
   const body = () => `<div class="tag">Sector · ${sec.lat.toFixed(1)}°${sec.lat < 0 ? 'S' : 'N'} ${Math.abs(sec.lon).toFixed(1)}°${sec.lon < 0 ? 'W' : 'E'}</div>
-    <h2>${sec.name}</h2><span class="status ${sec.open ? 'open' : 'locked'}">${sec.open ? 'Open' : 'Locked'}</span><p>${sec.text}</p>
+    <h2>${sec.name}</h2><span class="status ${sec.open ? 'open' : 'locked'}">${sec.open ? 'Open' : 'Preview'}</span><p>${sec.text}</p>
     ${sec.open && meta ? `<div class="grid">${stat(Math.round(AREA(meta.bounds) / 1000), 'k km²', 'Area mapped')}
       ${stat(targets.sites.length, '', 'Landing sites and stops')}${stat(targets.ice.length, '', 'Ice deposits')}
       ${stat(targets.mineral.length || '—', '', 'Mineral sites')}</div>` : ''}
     ${sec.open ? `<button id="enter" class="wide"${meta ? '' : ' disabled'}>${meta ? 'Enter sector ▶' : 'Loading terrain…'}</button>`
-      : `<p>No terrain data charted here yet. Prepare it with scripts/prep_dem.py (see README) to unlock this sector.</p><button class="wide alt" disabled>Locked</button>`}`;
+      : `${sec.facts ? `<div class="grid">${sec.facts.map(f => stat(...f)).join('')}</div>` : ''}<button class="wide alt" disabled>Coming soon</button>`}`;
   card.innerHTML = body();
   map.flyTo([sec.lat, sec.lon], Math.max(map.getZoom(), 3), { duration: 0.8 });
   if (sec.open && !meta) { await dataReady; if (!card.hidden) card.innerHTML = body(); }
@@ -193,8 +201,11 @@ function leaveSector() {
 $('back').onclick = leaveSector;
 
 // Cursor readout: position anywhere, plus a terrain scan inside the sector
-map.on('mousemove', e => {
-  const { lat, lng } = e.latlng;
+let lastMove = null;
+map.on('mousemove', e => { if (!lastMove) requestAnimationFrame(readout); lastMove = e; });
+function readout() {
+  const { lat, lng } = lastMove.latlng;
+  lastMove = null;
   let t = `LAT <b>${Math.abs(lat).toFixed(2)}°${lat < 0 ? 'S' : 'N'}</b>  LON <b>${Math.abs(lng).toFixed(2)}°${lng < 0 ? 'W' : 'E'}</b>`;
   if (meta) {
     const [r, c] = latLonCell(meta, lat, lng);
@@ -204,7 +215,7 @@ map.on('mousemove', e => {
     }
   }
   $('readout').innerHTML = t;
-});
+}
 
 // Start (A), destination (B) and science stops
 const pts = [], pins = [];
@@ -225,7 +236,14 @@ $('start').onchange = e => { if (e.target.value) { const x = startable[e.target.
 let tab = 'ice', picked = null;
 const tabs = [...document.querySelectorAll('.tabs button')];
 tabs.forEach(b => (b.onclick = () => setTab(b.dataset.tab)));
-function setTab(k) { tab = k; tabs.forEach(b => b.classList.toggle('on', b.dataset.tab === k)); renderTargets(); }
+function setTab(k) {
+  tab = k;
+  tabs.forEach(b => b.classList.toggle('on', b.dataset.tab === k));
+  // The Ice and Minerals tabs also show their map layer, so you can see what you are choosing between
+  for (const [name, layer] of Object.entries(overlays))
+    if (name === 'ice' || name === 'mineral') name === k ? layer.addTo(map) : layer.remove();
+  renderTargets();
+}
 function renderTargets() {
   if (!meta) return;
   tabs.find(b => b.dataset.tab === 'mineral').classList.toggle('locked', !targets.mineral.length);
@@ -353,7 +371,8 @@ function show(path, toIce) {
     return { x: dist / 1000, y: h[i] };
   });
   line = L.layerGroup([L.polyline(ll, { pane: 'sectorLines', color: '#000', weight: 7, opacity: 0.7 }),
-    L.polyline(ll, { pane: 'sectorLines', color: '#ff6a2b', weight: 3.5, className: 'route-glow' })]).addTo(map);
+    L.polyline(ll, { pane: 'sectorLines', color: '#ff6a2b', weight: 10, opacity: 0.25 }),
+    L.polyline(ll, { pane: 'sectorLines', color: '#ff6a2b', weight: 3.5 })]).addTo(map);
   const ends = legEnds.length ? legEnds : [idx.length - 1];
   trip = { ll, idx, cum, ends, names: ends.map((_, k) => (k === ends.length - 1 ? (toIce ? 'the ice' : 'B') : `stop ${k + 1}`)) };
   $('navGo').hidden = false;
@@ -441,7 +460,14 @@ function startNav() {
 }
 $('navGo').onclick = () => (nav && $('navGo').textContent === 'Stop' ? stopNav() : (stopNav(), startNav()));
 
-$('v3d').onclick = async () => meta && (await import('./view3d.js')).open3D(h, meta, lastPath);
+// Local 3D view: the terrain around the route (or around the pins), at full resolution
+$('v3d').onclick = async () => {
+  if (!meta) return;
+  const cells = lastPath || [pts[0], ...stops, pts[1]].filter(Boolean).map(q => latLonCell(meta, ...q))
+    .filter(([r, c]) => r >= 0 && c >= 0 && r < meta.rows && c < meta.cols);
+  const local = cropGrid(h, meta, cells);
+  (await import('./view3d.js')).open3D(local.h, local.meta, lastPath ? local.cells : null);
+};
 
 // Shareable link: #startLat,startLon,endLat,endLon opens the sector with that route
 const q = location.hash.slice(1).split(',').map(Number);

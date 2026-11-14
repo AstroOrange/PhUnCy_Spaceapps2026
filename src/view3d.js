@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { M_PER_DEG } from './geo.js';
 
-const EXAG = 3, MAX_VERTS = 500;
+const MAX_VERTS = 500;
 
 // Height at fractional grid position (r, c), cell-centre coordinates.
 export function bilinear(h, { rows, cols }, r, c) {
@@ -46,7 +46,10 @@ export function open3D(h, meta, path) {
   // For drawing only: unknown cells take the last known height (flat dark patch, not a fake pit)
   let hMin = Infinity, last = h.find(v => !Number.isNaN(v)) ?? 0;
   const hf = h.map(v => (Number.isNaN(v) ? last : (last = v)));
-  for (const v of hf) if (v < hMin) hMin = v;
+  let hMax = -Infinity;
+  for (const v of hf) { if (v < hMin) hMin = v; if (v > hMax) hMax = v; }
+  // Vertical exaggeration: at least 3×, more on flat ground (up to 12×) so relief about 5% of the width stays visible
+  const EXAG = Math.round(Math.min(12, Math.max(3, 0.05 * Math.max(W, H) * 1000 / Math.max(hMax - hMin, 1))));
   const Y = v => (v - hMin) / 1000 * EXAG;
 
   // Terrain: downsampled heightmap; edges ease down to the ground so there is no hard slab edge
@@ -72,7 +75,7 @@ export function open3D(h, meta, path) {
   sg.fillStyle = grad; sg.fillRect(0, 0, 2, 256);
   scene.background = new THREE.CanvasTexture(sky);
   scene.background.colorSpace = THREE.SRGBColorSpace;
-  scene.fog = new THREE.Fog('#c8946b', size * 0.5, size * 1.8);
+  scene.fog = new THREE.Fog('#c8946b', size * 0.9, size * 2.6);
   const floorMat = new THREE.MeshStandardMaterial({ color: '#b07a55', roughness: 1 });
   const floor = new THREE.Mesh(new THREE.PlaneGeometry(size * 12, size * 12).rotateX(-Math.PI / 2), floorMat);
   floor.position.y = -0.02;
@@ -115,7 +118,7 @@ export function open3D(h, meta, path) {
   // Overlay, renderer, controls
   const box = document.createElement('div');
   box.id = 'view3d';
-  box.innerHTML = `<button>Back to map</button><p>Heights from MOLA 463 m, exaggerated ${EXAG} times. Imagery from the CTX mosaic via NASA Mars Trek. Route smoothed for display. Drag to orbit, scroll to zoom.</p>`;
+  box.innerHTML = `<button>◀ Back to map</button><div class="tag3d">3D view · local area ${W.toFixed(0)} × ${H.toFixed(0)} km</div><p>Heights from MOLA 463 m, exaggerated ${EXAG} times. Imagery from the CTX mosaic via NASA Mars Trek. Route smoothed for display. Drag to orbit, scroll to zoom.</p>`;
   document.body.append(box);
   const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
   renderer.shadowMap.enabled = true;
@@ -133,7 +136,7 @@ export function open3D(h, meta, path) {
   // Frame the route (or the whole area) from the south, about 30 degrees above the horizon
   const target = focus.getCenter(new THREE.Vector3()), reach = Math.max(focus.getSize(new THREE.Vector3()).length(), size * 0.25);
   const camera = new THREE.PerspectiveCamera(40, 1, size / 2000, size * 6);
-  camera.position.set(target.x, target.y + reach * 0.42, target.z + reach * 0.8);
+  camera.position.set(target.x, target.y + reach * 0.6, target.z + reach * 1.15); // far enough back to see both ends
   const controls = new OrbitControls(camera, renderer.domElement);
   controls.target.copy(target);
   controls.enableDamping = true;
