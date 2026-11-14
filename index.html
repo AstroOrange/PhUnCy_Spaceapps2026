@@ -59,7 +59,7 @@
     .limits p { margin: 0; font-size: 12px; }
     footer { padding: 8px 20px; font-size: 11px; border-top: 1px solid var(--ink); }
     /* Map */
-    .relief { filter: grayscale(1) sepia(.7) saturate(1.7) hue-rotate(-12deg) brightness(1.02) contrast(.95); } /* shaded relief, tinted Mars rust */
+    .relief { filter: url(#marsTone); } /* shaded relief mapped to measured Mars colours, see the SVG filter below */
     .leaflet-container { font: 12px Archivo, Arial, sans-serif; }
     .leaflet-bar, .leaflet-control-layers { border: 1px solid var(--ink) !important; border-radius: 0 !important; box-shadow: none !important; }
     .leaflet-bar a { color: var(--ink) !important; border-radius: 0 !important; }
@@ -73,7 +73,7 @@
     .pin { border-radius: 50%; font: 700 10px/16px Archivo, Arial, sans-serif; text-align: center; border: 1px solid var(--ink); }
     .pin.a { background: var(--paper); color: var(--ink); } .pin.b { background: var(--ink); color: var(--paper); }
     /* 3D overlay */
-    #view3d { position: fixed; inset: 0; z-index: 2000; background: #2a1a14; }
+    #view3d { position: fixed; inset: 0; z-index: 2000; background: #d0bdae; }
     #view3d .bar3d { position: absolute; top: 14px; left: 14px; display: flex; gap: 8px; }
     #view3d .hud3d { position: absolute; top: 14px; right: 14px; width: min(420px, calc(100% - 28px)); background: var(--ink); color: var(--paper); padding: 10px 14px; }
     #view3d .hud3d .next b { font: 700 40px/1 var(--narrow); } #view3d .hud3d .next small { font-size: 16px; margin-left: 3px; }
@@ -92,6 +92,16 @@
   </style>
 </head>
 <body>
+  <!-- Mars colour ramp for the shaded relief. Middle = average colour of this region in the Viking orbiter colour mosaic
+       (#755a57, measured from Mars Trek's MDIM 2.1 colour tiles); dark and light keep that hue, stretched for readability. -->
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true"><filter id="marsTone" color-interpolation-filters="sRGB">
+    <feColorMatrix type="saturate" values="0" />
+    <feComponentTransfer>
+      <feFuncR type="table" tableValues="0.243 0.459 0.722" />
+      <feFuncG type="table" tableValues="0.184 0.353 0.588" />
+      <feFuncB type="table" tableValues="0.180 0.341 0.561" />
+    </feComponentTransfer>
+  </filter></svg>
   <header>
     <h1>Martian<br>Map</h1>
     <p>Safe Marswalks near shallow ice<br>Arcadia and Amazonis Planitia, Mars, 37.5°N to 41°N, 171°W to 156°W</p>

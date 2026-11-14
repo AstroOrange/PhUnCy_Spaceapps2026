@@ -29,7 +29,8 @@ async function imagery({ bounds: [latMin, latMax, lonMin, lonMax] }) {
     img.onerror = ok;
     img.src = `https://astro.arcgis.com/arcgis/rest/services/OnMars/CTX/MapServer/tile/${L}/${y}/${x}`;
   })));
-  g.globalCompositeOperation = 'multiply'; g.fillStyle = '#f2b58e'; g.fillRect(0, 0, cv.width, cv.height);
+  // Tint: makes mid-grey CTX land on the region's measured Viking colour (#755a57)
+  g.globalCompositeOperation = 'multiply'; g.fillStyle = '#d6a39e'; g.fillRect(0, 0, cv.width, cv.height);
   const one = Object.assign(document.createElement('canvas'), { width: 1, height: 1 }).getContext('2d');
   one.drawImage(cv, 0, 0, 1, 1);
   const [r, gr, b] = one.getImageData(0, 0, 1, 1).data;
@@ -61,23 +62,24 @@ export function open3D(h, meta, path, { onGo, onClose } = {}) {
   }
   geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
   geo.computeVertexNormals();
-  const mat = new THREE.MeshStandardMaterial({ vertexColors: true, color: '#b07a55', roughness: 1 });
+  const mat = new THREE.MeshStandardMaterial({ vertexColors: true, color: '#755a57', roughness: 1 });
   const terrain = new THREE.Mesh(geo, mat);
   terrain.castShadow = terrain.receiveShadow = true;
 
   const scene = new THREE.Scene(), size = Math.max(W, H);
   const sky = Object.assign(document.createElement('canvas'), { width: 2, height: 256 }), sg = sky.getContext('2d');
-  const grad = sg.createLinearGradient(0, 0, 0, 256); // Martian daytime sky: dusky up high, butterscotch at the horizon
-  grad.addColorStop(0, '#2b1b1a'); grad.addColorStop(0.55, '#9c6a4a'); grad.addColorStop(1, '#d9a679');
+  // Daytime sky measured from Viking Lander 2's true-colour photo of Utopia Planitia (NASA PIA01522)
+  const grad = sg.createLinearGradient(0, 0, 0, 256);
+  grad.addColorStop(0, '#d0bdae'); grad.addColorStop(0.55, '#e4cbbd'); grad.addColorStop(1, '#ffe8d5');
   sg.fillStyle = grad; sg.fillRect(0, 0, 2, 256);
   scene.background = new THREE.CanvasTexture(sky);
   scene.background.colorSpace = THREE.SRGBColorSpace;
-  scene.fog = new THREE.Fog('#c8946b', size * 0.5, size * 1.8);
-  const floorMat = new THREE.MeshStandardMaterial({ color: '#b07a55', roughness: 1 });
+  scene.fog = new THREE.Fog('#e4cbbd', size * 0.12, size * 1.2); // dust haze in the measured sky colour: distant ground fades into it
+  const floorMat = new THREE.MeshStandardMaterial({ color: '#755a57', roughness: 1 });
   const floor = new THREE.Mesh(new THREE.PlaneGeometry(size * 12, size * 12).rotateX(-Math.PI / 2), floorMat);
   floor.position.y = -0.02;
   floor.receiveShadow = true;
-  scene.add(floor, terrain, new THREE.HemisphereLight('#f3d1b0', '#3a2218', 0.8));
+  scene.add(floor, terrain, new THREE.HemisphereLight('#e4cbbd', '#584649', 0.8));
   const sun = new THREE.DirectionalLight('#fff1e0', 3); // low sun: long shadows show relief
   sun.position.set(-size, size * 0.3, size * 0.35);
   sun.castShadow = true;

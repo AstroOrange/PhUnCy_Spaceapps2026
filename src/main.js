@@ -46,7 +46,11 @@ for (const s of named) s.code ??= s.ref ? '' : s.poi ? `P${++p}` : `S${++n}`; //
 
 const map = L.map('map', { crs: L.CRS.EPSG4326, layers: [mola] }).setView([39.25, -163.5], 6);
 map.attributionControl.setPrefix('<a href="https://leafletjs.com">Leaflet</a>');
-const layerControl = L.control.layers({ 'Relief (MOLA)': mola, 'Imagery (CTX)': ctx }).addTo(map);
+// Real colour: Viking orbiter red and violet filter images (synthetic green), USGS MDIM 2.1 colour mosaic on Mars Trek
+const viking = L.tileLayer(
+  'https://trek.nasa.gov/tiles/Mars/EQ/Mars_Viking_MDIM21_ClrMosaic_global_232m/1.0.0/default/default028mm/{z}/{y}/{x}.jpg',
+  { maxNativeZoom: 7, maxZoom: 12, crossOrigin: true, attribution: 'NASA Mars Trek, USGS Viking MDIM 2.1 colour' });
+const layerControl = L.control.layers({ 'Relief (MOLA)': mola, 'Colour (Viking)': viking, 'Imagery (CTX)': ctx }).addTo(map);
 for (const s of named)
   L.marker([s.lat, s.lon], { icon: icon(SYM[s.ref ? 'ref' : s.poi ? 'poi' : 'site'] + `<b>${s.code || s.name.split(',')[0]}</b>`) })
     .bindPopup(`<b>${s.code} ${s.name}</b><br>${s.lat}°, ${s.lon}°<br><small>${s.source}</small>` +

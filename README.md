@@ -63,6 +63,9 @@ Longitudes are -180..180 east (except `fetch_mcd.py`, which takes 0..360 east). 
 - Dust cover: TES Dust Cover Index, Ruff & Christensen (2002), https://www.mars.asu.edu/~ruff/DCI/dci.html
 - Craters: Robbins & Hynek (2012) Mars crater database, 2020 release, https://craters.sjrdesign.net/
 - Weather: Mars Climate Database v6.2 (LMD/OU/IAA/ESA/CNES) web interface, https://www-mars.lmd.jussieu.fr/mcd_python/
+- Colours: the relief map, 3D ground and "Colour (Viking)" layer use the USGS Viking MDIM 2.1 colour mosaic (red and violet
+  filter images, synthetic green) via NASA Mars Trek; measured average for this region #755a57. The 3D sky and haze use colours
+  sampled from Viking Lander 2's true-colour photo of Utopia Planitia (NASA PIA01522). Relief contrast is stretched for readability.
 - Erebus Montes reference point: USGS Gazetteer of Planetary Nomenclature, https://planetarynames.wr.usgs.gov/Feature/1821
 
 ## Limitations
