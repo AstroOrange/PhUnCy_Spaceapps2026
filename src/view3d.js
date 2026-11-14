@@ -38,7 +38,7 @@ async function imagery({ bounds: [latMin, latMax, lonMin, lonMax] }) {
   return { tex, avg: new THREE.Color(`rgb(${r},${gr},${b})`) };
 }
 
-export function open3D(h, meta, path) {
+export function open3D(h, meta, path, { onGo, onClose } = {}) {
   const { rows, cols, bounds: [latMin, latMax] } = meta;
   const W = (meta.bounds[3] - meta.bounds[2]) * M_PER_DEG * Math.cos((latMin + latMax) * Math.PI / 360) / 1000; // km
   const H = (latMax - latMin) * M_PER_DEG / 1000;
@@ -88,6 +88,7 @@ export function open3D(h, meta, path) {
 
   // Route: grid steps smoothed (moving average, display only), draped by bilinear heights, a few metres above ground
   let focus = new THREE.Box3(new THREE.Vector3(-W / 2, 0, -H / 2), new THREE.Vector3(W / 2, 0, H / 2));
+  let curve = null, me = null, radius = size / 900;
   if (path?.length > 1) {
     const k = 6, smooth = path.map((_, i) => {
       let r = 0, c = 0, n = 0;
@@ -97,13 +98,18 @@ export function open3D(h, meta, path) {
     smooth[0] = path[0]; smooth[smooth.length - 1] = path.at(-1);
     const keep = smooth.filter((_, i) => i % 3 === 0 || i === smooth.length - 1);
     const flat = new THREE.CatmullRomCurve3(keep.map(([r, c]) => new THREE.Vector3(c, 0, r)));
-    const radius = size / 900;
-    const pts = flat.getSpacedPoints(Math.min(3000, path.length * 4))
-      .map(p => new THREE.Vector3(X(p.x), Y(bilinear(hf, meta, p.z, p.x)) + radius + 0.01, Z(p.z)));
+    const ground = flat.getSpacedPoints(Math.min(3000, path.length * 4)).map(p => new THREE.Vector3(X(p.x), Y(bilinear(hf, meta, p.z, p.x)), Z(p.z)));
+    const len = new THREE.CatmullRomCurve3(ground).getLength();
+    radius = Math.min(size / 900, Math.max(len / 150, size / 4000)); // tube thickness follows the route length
+    const pts = ground.map(p => p.clone().setY(p.y + radius + 0.01));
     const glow = c => new THREE.MeshStandardMaterial({ color: c, emissive: c, emissiveIntensity: 0.5, roughness: 0.5 });
-    scene.add(new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), pts.length, radius, 8), glow('#f04e23')));
+    curve = new THREE.CatmullRomCurve3(pts);
+    scene.add(new THREE.Mesh(new THREE.TubeGeometry(curve, pts.length, radius, 8), glow('#f04e23')));
+    me = new THREE.Mesh(new THREE.SphereGeometry(radius * 2.5), glow('#ffffff'));
+    me.visible = false;
+    scene.add(me);
     for (const [p, c] of [[pts[0], '#ffffff'], [pts.at(-1), '#111111']]) { // survey stakes: A (start), B (end)
-      const tall = size / 35, stake = new THREE.Mesh(new THREE.CylinderGeometry(radius * 0.6, radius * 0.6, tall), glow(c));
+      const tall = Math.max(len / 25, radius * 8), stake = new THREE.Mesh(new THREE.CylinderGeometry(radius * 0.6, radius * 0.6, tall), glow(c));
       const cap = new THREE.Mesh(new THREE.SphereGeometry(radius * 2.5), glow(c));
       stake.position.copy(p).y += tall / 2;
       cap.position.copy(p).y += tall;
@@ -115,7 +121,9 @@ export function open3D(h, meta, path) {
   // Overlay, renderer, controls
   const box = document.createElement('div');
   box.id = 'view3d';
-  box.innerHTML = `<button>Back to map</button><p>Heights from MOLA 463 m, exaggerated ${EXAG} times. Imagery from the CTX mosaic via NASA Mars Trek. Route smoothed for display. Drag to orbit, scroll to zoom.</p>`;
+  box.innerHTML = `<div class="bar3d"><button class="back">Back to map</button>${curve && onGo ? '<button class="go3d alt">Go</button>' : ''}</div>
+    <div class="hud3d" hidden></div>
+    <p>Heights from MOLA 463 m, exaggerated ${EXAG} times. Imagery from the CTX mosaic via NASA Mars Trek. Route smoothed for display. Drag to orbit, scroll to zoom.</p>`;
   document.body.append(box);
   const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
   renderer.shadowMap.enabled = true;
@@ -142,8 +150,34 @@ export function open3D(h, meta, path) {
   const resize = () => { renderer.setSize(innerWidth, innerHeight); camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); };
   resize();
   addEventListener('resize', resize);
-  renderer.setAnimationLoop(() => { controls.update(); renderer.render(scene, camera); });
-  box.querySelector('button').onclick = () => {
-    renderer.setAnimationLoop(null); renderer.dispose(); removeEventListener('resize', resize); box.remove();
+  // Follow camera for Go mode: chase the marker from behind and above, looking a little ahead
+  let follow = null;
+  const back = curve ? Math.min(Math.max(curve.getLength() * 0.35, radius * 60), size / 6) : 0;
+  renderer.setAnimationLoop(() => {
+    if (follow != null && curve) {
+      const u = Math.min(1, Math.max(0, follow)), p = curve.getPointAt(u), t = curve.getTangentAt(u);
+      me.position.copy(p);
+      const want = p.clone().addScaledVector(t, -back).add(new THREE.Vector3(0, back * 0.8, 0)); // high, looking down the route
+      camera.position.lerp(want, 0.08);
+      controls.target.lerp(curve.getPointAt(Math.min(1, u + 0.02)), 0.15);
+      camera.lookAt(controls.target);
+    } else controls.update();
+    renderer.render(scene, camera);
+  });
+  const hud = box.querySelector('.hud3d');
+  const api = {
+    // u = fraction of the route done (0..1); html = the same navigation text as the 2D map
+    setProgress(u, html) {
+      if (!curve) return;
+      me.visible = true; follow = u; controls.enabled = false;
+      hud.hidden = false; hud.innerHTML = html;
+    },
+    stop() { follow = null; controls.enabled = true; },
+    close() {
+      renderer.setAnimationLoop(null); renderer.dispose(); removeEventListener('resize', resize); box.remove(); onClose?.();
+    },
   };
+  box.querySelector('.back').onclick = api.close;
+  box.querySelector('.go3d')?.addEventListener('click', () => onGo());
+  return api;
 }

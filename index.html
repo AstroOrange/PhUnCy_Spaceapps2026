@@ -74,7 +74,13 @@
     .pin.a { background: var(--paper); color: var(--ink); } .pin.b { background: var(--ink); color: var(--paper); }
     /* 3D overlay */
     #view3d { position: fixed; inset: 0; z-index: 2000; background: #2a1a14; }
-    #view3d button { position: absolute; top: 14px; left: 14px; }
+    #view3d .bar3d { position: absolute; top: 14px; left: 14px; display: flex; gap: 8px; }
+    #view3d .hud3d { position: absolute; top: 14px; right: 14px; width: min(420px, calc(100% - 28px)); background: var(--ink); color: var(--paper); padding: 10px 14px; }
+    #view3d .hud3d .next b { font: 700 40px/1 var(--narrow); } #view3d .hud3d .next small { font-size: 16px; margin-left: 3px; }
+    #view3d .hud3d .next span { display: block; font-size: 14px; margin-top: 2px; }
+    #view3d .hud3d .row { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 12px; margin-top: 6px; }
+    #view3d .hud3d .warn { margin-top: 6px; padding: 4px 8px; background: var(--orange); font-size: 13px; font-weight: 700; }
+    @media (max-width: 760px) { #view3d .hud3d { top: 60px; left: 14px; right: 14px; width: auto; } }
     #view3d p { position: absolute; left: 14px; bottom: 12px; margin: 0; font-size: 12px; color: #fff; text-shadow: 0 1px 2px #000; }
     @media (max-width: 760px) {
       html, body { height: auto; } body { display: block; }

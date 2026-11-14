@@ -250,7 +250,7 @@ function at(d) { // position and path index at distance d (m) along the route
   return { ll: [a[0] + (b[0] - a[0]) * f, a[1] + (b[1] - a[1]) * f], j };
 }
 function stopNav() {
-  if (nav) cancelAnimationFrame(nav.raf), nav.me.remove();
+  if (nav) cancelAnimationFrame(nav.raf), nav.me.remove(), view3d?.stop();
   nav = null;
   $('navGo').textContent = 'Go';
 }
@@ -284,14 +284,22 @@ function startNav() {
       <div class="row"><span>EVA ${hrs.toFixed(1)} h used, ${Math.max(0, eva - hrs).toFixed(1)} h left</span><span>${(hrs * DOSE_PER_H).toFixed(2)} mSv</span><span>${(d / 1000).toFixed(1)} of ${(total / 1000).toFixed(1)} km</span></div>
       ${warn ? `<div class="warn">Ahead: ${warn}</div>` : ''}${turn ? `<div class="warn">${turn}</div>` : ''}
       ${d >= total ? `<div class="row"><span>Arrived at ${trip.names.at(-1)}. Simulated position, not GPS.</span></div>` : ''}`;
+    view3d?.setProgress(d / total, $('nav').innerHTML);
     if (d < total) nav.raf = requestAnimationFrame(tick);
-    else $('navGo').textContent = 'Go';
+    else { $('navGo').textContent = 'Go'; view3d?.stop(); }
   };
   nav.raf = requestAnimationFrame(tick);
 }
 $('navGo').onclick = () => (nav && $('navGo').textContent === 'Stop' ? stopNav() : (stopNav(), startNav()));
 
-$('v3d').onclick = async () => meta && (await import('./view3d.js')).open3D(h, meta, lastPath);
+let view3d = null;
+$('v3d').onclick = async () => {
+  if (!meta) return;
+  view3d = (await import('./view3d.js')).open3D(h, meta, lastPath, {
+    onGo: () => (stopNav(), startNav()), // the same simulation drives the map and the 3D view
+    onClose: () => (view3d = null),
+  });
+};
 
 // Shareable link: #startLat,startLon,endLat,endLon
 const q = location.hash.slice(1).split(',').map(Number);

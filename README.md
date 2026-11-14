@@ -26,6 +26,7 @@ rover site, no shallow ice) was built and is in the git history (commit 8704b26)
   for the whole trip), with distance and direction to the next stop, EVA time used and left, radiation so far,
   hazards in the next 1 km, and a turn-back alert. Position is simulated: Mars has no GPS, so a real mission
   would use suit or rover motion tracking and camera matching to orbital maps.
+  In the 3D view, Go runs the same simulation with a follow camera behind the marker and the same navigation bar.
 - Site popups link to the HiRISE close-ups; the panel lists the data types used (topographic, optical, thermal,
   spectral, geophysical, atmospheric, radiation, geologic).
 - Summary: distance, climb/descent, steepest slope with a map marker (Measured, from MOLA); walking time, loose ground,
