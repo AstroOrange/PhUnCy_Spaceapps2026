@@ -1,40 +1,31 @@
 # Arcadia Pathfinder: safe Marswalks on Mars (NASA Space Apps 2026)
 
-A static web app that plans safe Marswalks: it finds the ONE safest route between landing sites and science stops,
-steering around hazards, and shows it on a 2D map and in 3D.
-Demo region: Arcadia and Amazonis Planitia (37.5°N to 41°N, 171°W to 156°W, about 207 x 690 km), flat lowland plains
-with shallow ice: SpaceX Starship candidate sites (S1-S9) and the NASA Ames candidate sites AP-1, AP-8 and AP-9
-(Luzzi et al. 2025), where ice is estimated to lie tens of centimetres down. An Oxia Planum version (clay-rich, ExoMars
-rover site, no shallow ice) was built and is in the git history (commit 8704b26).
+A static web app, like a route planner for Mars, that finds the safest route between candidate landing sites and science
+stops and steers around hazards. It uses only measured data from NASA missions and peer-reviewed catalogs.
+
+Region: Arcadia and Amazonis Planitia (37.5°N to 41°N, 171°W to 156°W, about 207 x 690 km), flat lowland plains with
+shallow ice, where SpaceX imaged candidate Starship landing sites with HiRISE.
 
 ## What it does
-- Map of Mars (NASA Mars Trek MOLA relief / CTX imagery) with candidate sites (black squares) and points of interest (open diamonds).
-- Pick start and end (dropdowns or map clicks) and get one route, found by A* in a Web Worker on an 8-neighbour grid:
-  step cost = distance × (1 + 0.1 × slope° + extra hazards). Slopes over the limit (default 15°) are blocked;
-  cells with no data are high-cost "unknown", never treated as flat.
-- Extra hazards, each with its own penalty slider and map overlay:
-  - Loose or dusty ground: from TES thermal inertia and the TES Dust Cover Index (`src/hazards.js`).
-  - Crater rims: distance to the rim crest of every crater 1 km or wider in the Robbins & Hynek catalog.
-- Route to the nearest likely ice: from point A to the closest cell where the SWIM ice-consistency score (ice within 1 m) is 0.25 or more.
-  Hidden when no cell in the region reaches that score. In this region the score peaks at 0.50, in the east near the AP sites.
-- Weather by season: dust opacity, ground temperature and wind for each Mars month from the Mars Climate Database, with warnings.
-- Marswalk plan: travel on foot or by unpressurised rover (2 astronauts), EVA length 4/6/8 h; checks whether the
-  out-and-back trip fits one EVA, gives the furthest reachable target, and estimates the radiation dose outside
-  (Curiosity RAD surface rate, about 0.67 mSv/day). Speeds are assumptions: 1.5-3 km/h on foot, 5-10 km/h by rover.
-- Science stops: add any number of stops; the route goes A -> stops -> B, leg by leg.
-- Go (simulated navigation): an astronaut marker moves along the route at the slower planned speed (about 60 s
-  for the whole trip), with distance and direction to the next stop, EVA time used and left, radiation so far,
-  hazards in the next 1 km, and a turn-back alert. Position is simulated: Mars has no GPS, so a real mission
-  would use suit or rover motion tracking and camera matching to orbital maps.
-  In the 3D view, Go runs the same simulation with a follow camera behind the marker and the same navigation bar.
-- Site popups link to the HiRISE close-ups; the panel lists the data types used (topographic, optical, thermal,
-  spectral, geophysical, atmospheric, radiation, geologic).
-- Summary: distance, climb/descent, steepest slope with a map marker (Measured, from MOLA); walking time, loose ground,
-  crater rims, ice score and weather (Estimated); elevation profile chart.
-- "3D view": Three.js terrain (≤500×500 vertices, 3× vertical exaggeration, low sun and shadows), real CTX imagery
-  draped on top, route drawn as a smoothed tube a few metres above the ground.
-- Works offline (PWA): app and data are cached; map tiles you have viewed stay cached.
-- Shareable link: the URL hash stores `startLat,startLon,endLat,endLon`.
+- Search a site (S4, P1) or coordinates ("39.8, -157.9"), then route from or to it.
+- From and To from a list or by clicking the map, a Swap button, and science stops (A, stops, B).
+- Three alternative routes, like a road map's options: Safest (strongest hazard avoidance), Balanced and Shortest
+  (still under the slope limit). Cards compare distance, climb, steepest slope, loose ground and crater rims;
+  click a card or a grey line to switch.
+- Step-by-step directions ("Head east for 35.7 km") with hazard notes; click a step to zoom to it.
+- "What's here?": right-click anywhere for measured elevation, slope, ice score, loose ground and crater-rim proximity.
+- Avoid options (loose or dusty ground, crater rims), a slope limit, and a route to the nearest likely ice.
+- Elevation profile chart, a scale bar measured on Mars, base maps (relief, Viking colour, CTX imagery) and data overlays.
+- Works offline (PWA). Shareable link: the URL hash stores `startLat,startLon,endLat,endLon`.
+
+## How routes are found
+A* search on an 8-neighbour grid of MOLA elevation cells (1/128°, about 462 m north-south).
+Step cost = distance × (1 + k × slope° + hazard terms), where slope is the larger of the cell slope and the step grade.
+Steps over the slope limit (default 15°) are blocked; cells with no elevation data are scored like a 75° slope, never as flat.
+Safest uses k = 0.1 and hazard weight 2, Balanced k = 0.05 and weight 1, Shortest k = 0.01 and no hazard weight.
+Loose ground is a 0 to 1 score from TES thermal inertia (150+ firm, 60 or lower powder) and the TES Dust Cover Index
+(0.95+ low dust, 0.92 or lower dusty); these cut-offs are ours. Crater rims score 1 on the rim crest of each catalog crater
+1 km to 100 km wide, fading to 0 within a quarter of the radius (at most 2 km).
 
 ## Run
     npm install
@@ -42,42 +33,32 @@ rover site, no shallow ice) was built and is in the git history (commit 8704b26)
     npm test         # unit tests: distance, slope, A*, hazards
     npm run build    # static site in dist/ (deploy to Vercel or GitHub Pages)
 
-## Prepare data (one time, already done for the demo region)
+## Prepare data (one time, already done)
     python -m venv .venv && .venv\Scripts\pip install -r scripts/requirements.txt
     .venv\Scripts\python scripts/prep_dem.py 37.5 41 -171 -156 --layer ice=data/raw/swim/SWIM2_c0_1.tif ^
         --layer ti=data/raw/ti/ti_arcadia_wide.tif --layer dci=data/raw/dci/dci_16ppd.tif --craters data/raw/craters/craters2020.csv.zip
-    .venv\Scripts\python scripts/fetch_mcd.py 39.25 193
-`prep_dem.py` reads `data/raw/mola.tif` (USGS DEM) and resamples every `--layer` raster onto the same grid, writing
-`public/data/*.bin` and `dem.json`. `fetch_mcd.py` writes `public/data/climate.json`.
-Longitudes are -180..180 east (except `fetch_mcd.py`, which takes 0..360 east). Distances use Mars radius 3389.5 km.
+Reads `data/raw/mola.tif` (USGS DEM) and resamples every layer onto the same grid, writing `public/data/*.bin` and `dem.json`.
 
-## Data sources
-- Elevation: USGS Astrogeology, Mars MGS MOLA DEM 463 m, https://astrogeology.usgs.gov/search/map/mars_mgs_mola_dem_463m
-- Base map: NASA Mars Trek WMTS: MOLA colour shaded relief (463 m) and CTX global mosaic (5 m, Caltech Murray Lab), https://trek.nasa.gov/mars/
-- SpaceX candidate sites and points of interest: HiRISE (University of Arizona) image centres of the "Candidate Landing Site for
-  SpaceX Starship" and traverse-hazard images (2019-2026), https://www.uahirise.org (image IDs in `public/sites.json`)
-- AP-1, AP-8, AP-9: Luzzi, Heldmann et al. (2025), Geomorphological evidence of near-surface ice at candidate landing sites in
-  northern Amazonis Planitia, Mars, JGR Planets 130(5), doi 10.1029/2024JE008724 (coordinates as reported; check against the paper)
-- Ice: SWIM 2.0 combined ice consistency, 0-1 m (Planetary Science Institute / NASA), https://swim.psi.edu/SWIM2Products.php
-- Thermal inertia: TES nighttime thermal inertia, Putzig & Mellon (2007), via the ASU JMARS map server, https://www.mars.asu.edu/data/tes_putzigti/nightside2007/
+## Data sources (all measured)
+- Elevation: USGS Astrogeology, Mars MGS MOLA DEM 463 m (Mars Global Surveyor laser altimeter), https://astrogeology.usgs.gov/search/map/mars_mgs_mola_dem_463m
+- Base maps: NASA Mars Trek WMTS: MOLA colour shaded relief, USGS Viking MDIM 2.1 colour mosaic, CTX global mosaic (Caltech Murray Lab), https://trek.nasa.gov/mars/
+- Sites: HiRISE (University of Arizona) image centres of "Candidate Landing Site for SpaceX Starship" and traverse-hazard images (2019-2026), https://www.uahirise.org (image IDs in `public/sites.json`)
+- Ice: SWIM 2.0 combined ice consistency, 0-1 m, derived from orbital neutron, radar, thermal and landform measurements (Planetary Science Institute / NASA), https://swim.psi.edu/SWIM2Products.php
+- Thermal inertia: TES nighttime thermal inertia, Putzig & Mellon (2007), via the ASU map server, https://www.mars.asu.edu/data/tes_putzigti/nightside2007/
 - Dust cover: TES Dust Cover Index, Ruff & Christensen (2002), https://www.mars.asu.edu/~ruff/DCI/dci.html
 - Craters: Robbins & Hynek (2012) Mars crater database, 2020 release, https://craters.sjrdesign.net/
-- Weather: Mars Climate Database v6.2 (LMD/OU/IAA/ESA/CNES) web interface, https://www-mars.lmd.jussieu.fr/mcd_python/
-- Colours: the relief map, 3D ground and "Colour (Viking)" layer use the USGS Viking MDIM 2.1 colour mosaic (red and violet
-  filter images, synthetic green) via NASA Mars Trek; measured average for this region #755a57. The 3D sky and haze use colours
-  sampled from Viking Lander 2's true-colour photo of Utopia Planitia (NASA PIA01522). Relief contrast is stretched for readability.
-- Erebus Montes reference point: USGS Gazetteer of Planetary Nomenclature, https://planetarynames.wr.usgs.gov/Feature/1821
+- Colours: relief tint and Viking layer from the Viking MDIM 2.1 colour mosaic (measured average for this region #755a57)
+- Erebus Montes landmark: USGS Gazetteer of Planetary Nomenclature, https://planetarynames.wr.usgs.gov/Feature/1821
+- Related study (not on the map, site coordinates not verified): Luzzi et al. (2025), near-surface ice at candidate landing
+  sites in northern Amazonis Planitia, JGR Planets, doi 10.1029/2024JE008724
 
 ## Limitations
 - 463 m cells: boulders, small craters, cliffs and anything under ~460 m are invisible.
-- Loose ground, ice and crater data are coarser than the grid (SWIM about 3 km, TES about 3 km); they mark zones, not exact spots.
+- Ice, dust and thermal data are coarser than the grid (about 3 km): they mark zones, not exact spots.
 - Ice scores here peak at 0.50 on a -1 to +1 scale: "likely" means the orbiter data is consistent with ice, not proof.
-- The weather table is for one point (39.25°N, 193°E) in the western part of the map, not a forecast.
-- Craters wider than 100 km are skipped as rims: these ancient basins are worn down and their relief is already in the slope grid.
-- Weather is a climate model for one point at the region centre, not a forecast. Dust storm values exist only in storm season (Ls 180 to 360).
-- Walk time assumes 1.5 to 3 km/h in a suit; it is an estimate, not a plan.
-- SpaceX site positions are HiRISE image centres, not exact landing points.
-- The CTX mosaic has gaps and brightness seams; around Erebus Montes one tile zoom level returns a repeated placeholder.
+- No travel times: there is no measured walking or rover speed on Mars for suited astronauts, so routes report distance,
+  climb, slope and hazards only.
+- Site positions are HiRISE image centres, not exact landing points. Directions are from the grid route, so headings are approximate.
 
 ## AI assistance
 AI assistance (Claude Code) was used to write this code.
