@@ -7,13 +7,15 @@ import '@fontsource/archivo-narrow/latin-700.css';
 import Chart from 'chart.js/auto';
 import { haversine, cellLatLon, latLonCell } from './geo.js';
 import { hazardGrids } from './hazards.js';
+import { peaks } from './targets.js';
+import { SECTORS, FEATURES } from './hub.js';
 
 const $ = id => document.getElementById(id);
 const msg = t => ($('summary').innerHTML = `<p class="note">${t}</p>`);
-Object.assign(Chart.defaults, { color: '#000', borderColor: '#000' });
+Object.assign(Chart.defaults, { color: '#8b97a3', borderColor: 'rgba(255,255,255,.08)' });
 Object.assign(Chart.defaults.font, { family: 'Archivo, Arial, sans-serif', size: 10 });
-Object.assign(Chart.defaults.plugins.tooltip, { backgroundColor: '#fff', titleColor: '#000', bodyColor: '#000',
-  borderColor: '#000', borderWidth: 1, cornerRadius: 0, displayColors: false, padding: 6 });
+Object.assign(Chart.defaults.plugins.tooltip, { backgroundColor: '#0a0d11', titleColor: '#e9edf1', bodyColor: '#e9edf1',
+  borderColor: 'rgba(255,255,255,.2)', borderWidth: 1, cornerRadius: 0, displayColors: false, padding: 6 });
 
 // Formats/URLs checked against each layer's WMTSCapabilities.xml:
 // MOLA = 256px .jpg on trek.nasa.gov; CTX = 512px .png redirected to astro.arcgis.com (2x1 tiles at level 0).
@@ -24,18 +26,20 @@ const ctx = L.tileLayer(
   'https://astro.arcgis.com/arcgis/rest/services/OnMars/CTX/MapServer/tile/{z}/{y}/{x}',
   { tileSize: 512, zoomOffset: -1, minZoom: 1, maxNativeZoom: 12, maxZoom: 12, crossOrigin: true, attribution: 'NASA Mars Trek, CTX (Caltech)' });
 
-// Map symbols (cartographic, not glowing dots)
+// Map symbols
 const svg = body => `<svg width="12" height="12" viewBox="0 0 12 12">${body}</svg>`;
 const SYM = {
-  site: svg('<rect x="2" y="2" width="8" height="8" fill="#000" stroke="#fff" stroke-width="1"/>'),
-  poi: svg('<path d="M6 1.5 10.5 6 6 10.5 1.5 6Z" fill="#fff" stroke="#000" stroke-width="1.5"/>'),
-  ref: svg('<path d="M6 1v10M1 6h10" stroke="#000" stroke-width="1.5"/>'),
-  hazard: svg('<path d="M6 1.5 11 10.5H1Z" fill="#000" stroke="#fff" stroke-width="1"/>'),
-  route: svg('<path d="M0 6h12" stroke="#fff" stroke-width="5"/><path d="M0 6h12" stroke="#f04e23" stroke-width="3"/>'),
-  extent: svg('<path d="M0 6h12" stroke="#000" stroke-dasharray="3 2"/>'),
-  ice: svg('<rect x="1" y="1" width="10" height="10" fill="#2f6fd6" fill-opacity=".7"/>'),
-  loose: svg('<rect x="1" y="1" width="10" height="10" fill="#b06828" fill-opacity=".65"/>'),
-  crater: svg('<circle cx="6" cy="6" r="4.2" fill="none" stroke="#000" stroke-width="1.6"/>'),
+  site: svg('<rect x="2" y="2" width="8" height="8" fill="#e9edf1" stroke="#000" stroke-width="1"/>'),
+  poi: svg('<path d="M6 1.5 10.5 6 6 10.5 1.5 6Z" fill="#000" stroke="#e9edf1" stroke-width="1.5"/>'),
+  ref: svg('<path d="M6 1v10M1 6h10" stroke="#e9edf1" stroke-width="1.5"/>'),
+  hazard: svg('<path d="M6 1.5 11 10.5H1Z" fill="#ffb547" stroke="#000" stroke-width="1"/>'),
+  route: svg('<path d="M0 6h12" stroke="#000" stroke-width="5"/><path d="M0 6h12" stroke="#ff6a2b" stroke-width="3"/>'),
+  extent: svg('<path d="M0 6h12" stroke="#7dffa8" stroke-dasharray="3 2"/>'),
+  iceTarget: svg('<path d="M6 .8 10.6 3.4v5.2L6 11.2 1.4 8.6V3.4Z" fill="#3fd4ff" stroke="#000" stroke-width="1"/>'),
+  mineral: svg('<path d="M6 .8 11 6 6 11.2 1 6Z" fill="#ffb547" stroke="#000" stroke-width="1"/>'),
+  ice: svg('<rect x="1" y="1" width="10" height="10" fill="#3fd4ff" fill-opacity=".6"/>'),
+  loose: svg('<rect x="1" y="1" width="10" height="10" fill="#c27a3a" fill-opacity=".7"/>'),
+  crater: svg('<circle cx="6" cy="6" r="4.2" fill="none" stroke="#e9edf1" stroke-width="1.6"/>'),
 };
 const icon = (html, className = 'mk', size = 12) => L.divIcon({ html, className, iconSize: [size, size] });
 
@@ -44,77 +48,222 @@ const named = sites.filter(s => s.lat != null && s.lon != null);
 let n = 0, p = 0;
 for (const s of named) s.code ??= s.ref ? '' : s.poi ? `P${++p}` : `S${++n}`; // sites may bring their own code (AP-1)
 
-const map = L.map('map', { crs: L.CRS.EPSG4326, layers: [mola] }).setView([39.25, -163.5], 6);
+// Map. Everything that belongs to the sector lives in two panes that are hidden on the world map.
+const WORLD_VIEW = innerWidth < 760 ? [[32, -150], 2] : [[15, -95], 2]; // phones start over Arcadia
+const map = L.map('map', { crs: L.CRS.EPSG4326, layers: [mola], minZoom: 1, maxZoom: 12,
+  maxBounds: [[-90, -180], [90, 180]], maxBoundsViscosity: 1 }).setView(...WORLD_VIEW);
 map.attributionControl.setPrefix('<a href="https://leafletjs.com">Leaflet</a>');
-const layerControl = L.control.layers({ 'Relief (MOLA)': mola, 'Imagery (CTX)': ctx }).addTo(map);
+const layerControl = L.control.layers({ 'Relief (MOLA)': mola, 'Imagery (CTX)': ctx }, null, { position: 'topleft' }).addTo(map);
+map.createPane('sectorLines').style.zIndex = 450;
+map.createPane('sectorMarks').style.zIndex = 620;
+const showSector = on => ['sectorLines', 'sectorMarks'].forEach(k => (map.getPane(k).style.display = on ? '' : 'none'));
+showSector(false);
+const inSector = { pane: 'sectorMarks' };
+
 for (const s of named)
-  L.marker([s.lat, s.lon], { icon: icon(SYM[s.ref ? 'ref' : s.poi ? 'poi' : 'site'] + `<b>${s.code || s.name.split(',')[0]}</b>`) })
+  L.marker([s.lat, s.lon], { ...inSector, icon: icon(SYM[s.ref ? 'ref' : s.poi ? 'poi' : 'site'] + `<b>${s.code || s.name.split(',')[0]}</b>`) })
     .bindPopup(`<b>${s.code} ${s.name}</b><br>${s.lat}°, ${s.lon}°<br><small>${s.source}</small>` +
       (s.source.match(/ESP_\d{6}_\d{4}/g) || []).map(id => `<br><a href="https://www.uahirise.org/${id}" target="_blank" rel="noopener">See it up close: HiRISE ${id}</a>`).join('')).addTo(map);
 const legend = L.control({ position: 'bottomleft' });
-legend.onAdd = () => Object.assign(L.DomUtil.create('div', 'legend'), { innerHTML: [
-  [SYM.site, 'Candidate landing site (S)'], [SYM.poi, 'Point of interest (P)'],
-  [SYM.route, 'Safest route'], [SYM.hazard, 'Steepest point on route'], [SYM.extent, 'Elevation data extent'],
-  [SYM.ice, 'Ice likely within 1 m (SWIM)'], [SYM.loose, 'Loose or dusty ground (TES)'], [SYM.crater, 'Crater rim (Robbins catalog)'],
-].map(([s, t]) => `<span class="sym">${s}</span>${t}`).join('<br>') });
-legend.addTo(map);
+const legendBox = L.DomUtil.create('div', 'legend');
+legend.onAdd = () => legendBox;
 
-// Elevation grid from scripts/prep_dem.py
+// World hub: sector nodes and landmark labels
+const world = L.layerGroup().addTo(map);
+for (const [name, lat, lon] of FEATURES)
+  L.marker([lat, lon], { interactive: false, keyboard: false, icon: L.divIcon({ className: '', iconSize: null, html: `<div class="feature">${name}</div>` }) }).addTo(world);
+const nodes = {};
+for (const sec of SECTORS) {
+  nodes[sec.id] = L.marker([sec.lat, sec.lon], { title: sec.name, riseOnHover: true, icon: L.divIcon({ className: '', iconSize: [30, 30],
+    html: `<div class="node ${sec.open ? 'open' : 'locked'}" style="width:30px;height:30px">${sec.open ? '<div class="ring pulse"></div><div class="ring pulse late"></div>' : ''}
+      <div class="ring"></div><div class="core"></div><div class="label">${sec.name}<small>${sec.sub}</small></div></div>` }) })
+    .on('click', () => selectSector(sec)).addTo(world);
+}
+
+// Terrain data loads in the background while you look around the world map
 const ICE_MIN = 0.25; // SWIM ice-consistency score treated as "ice likely" (strongest signal in this region)
-const meta = await fetch('data/dem.json').then(r => r.json()).catch(() => null);
-const bin = f => fetch(`data/${f}.bin`).then(r => r.arrayBuffer()).then(b => new Float32Array(b));
-let h, s, worker, layers = {}, hazards = {};
-if (meta) {
+let meta, h, s, worker, layers = {}, hazards = {}, climate, targets = { ice: [], mineral: [], sites: [] };
+const dataReady = (async () => {
+  meta = await fetch('data/dem.json').then(r => r.json()).catch(() => null);
+  if (!meta) return;
+  const bin = f => fetch(`data/${f}.bin`).then(r => r.arrayBuffer()).then(b => new Float32Array(b));
   [h, s] = await Promise.all([bin('dem'), bin('slope')]);
   layers = Object.fromEntries(await Promise.all((meta.layers || []).map(async n => [n, await bin(n)])));
   hazards = hazardGrids(layers);
+  climate = await fetch('data/climate.json').then(r => r.json()).catch(() => null);
   worker = new Worker(new URL('./worker.js', import.meta.url), { type: 'module' });
   worker.postMessage({ h, s, meta, layers });
   const [a, b, c, d] = meta.bounds;
-  map.fitBounds(L.rectangle([[a, c], [b, d]], { color: '#000', weight: 1, opacity: 0.8, dashArray: '4 4', fill: false, interactive: false }).addTo(map).getBounds());
+  L.rectangle([[a, c], [b, d]], { color: '#7dffa8', weight: 1.5, dashArray: '5 4', fill: true, fillOpacity: 0.06, interactive: false, className: 'sector-box' }).addTo(map);
   // Data layers drawn from the grid, toggled from the layer menu
   const overlay = (label, grid, rgba) => {
     const cv = Object.assign(document.createElement('canvas'), { width: meta.cols, height: meta.rows }), g = cv.getContext('2d');
     const img = g.createImageData(meta.cols, meta.rows);
     grid.forEach((v, i) => img.data.set(rgba(v), i * 4));
     g.putImageData(img, 0, 0);
-    layerControl.addOverlay(L.imageOverlay(cv.toDataURL(), [[a, c], [b, d]]), label);
+    layerControl.addOverlay(L.imageOverlay(cv.toDataURL(), [[a, c], [b, d]], { pane: 'sectorLines' }), label);
   };
-  if (layers.ice) overlay('Ice likely within 1 m (SWIM)', layers.ice, v => (v > 0 ? [47, 111, 214, Math.min(1, v / 0.35) * 190] : [0, 0, 0, 0]));
-  if (hazards.loose) overlay('Loose or dusty ground (TES)', hazards.loose, v => [176, 104, 40, v * 170]);
-  if (hazards.crater) overlay('Crater rims (Robbins catalog)', hazards.crater, v => [0, 0, 0, v > 0.3 ? v * 200 : 0]);
-} else msg('No elevation data yet: run scripts/prep_dem.py (see README).');
-$('ice').hidden = !layers.ice?.some(v => v >= ICE_MIN); // hide where no cell reaches the likely-ice score
-// Seasonal weather table from scripts/fetch_mcd.py (Mars Climate Database)
-const climate = await fetch('data/climate.json').then(r => r.json()).catch(() => null);
+  if (layers.ice) overlay('Ice likely within 1 m (SWIM)', layers.ice, v => (v > 0 ? [63, 212, 255, Math.min(1, v / 0.35) * 170] : [0, 0, 0, 0]));
+  if (hazards.loose) overlay('Loose or dusty ground (TES)', hazards.loose, v => [194, 122, 58, v * 170]);
+  if (hazards.crater) overlay('Crater rims (Robbins catalog)', hazards.crater, v => [233, 237, 241, v > 0.3 ? v * 200 : 0]);
+
+  // Objectives. Ice: the strongest SWIM spots, one per patch. Minerals: sites in sites.json marked "mineral"
+  // (none yet: no mineral map is loaded for this region). Sites: landing sites and points of interest in the box.
+  const inBox = ([la, lo]) => la >= a && la <= b && lo >= c && lo <= d;
+  if (layers.ice) targets.ice = peaks(layers.ice, meta, { min: 0.3, sepKm: 50, margin: 8 }).map((t, k) =>
+    ({ name: `Ice deposit ${k + 1}`, code: `I${k + 1}`, ll: t.ll, sym: SYM.iceTarget, detail: `ice score ${t.value.toFixed(2)}` }));
+  targets.mineral = named.filter(x => x.mineral && inBox([x.lat, x.lon])).map((x, k) =>
+    ({ name: x.name, code: `M${k + 1}`, ll: [x.lat, x.lon], sym: SYM.mineral, detail: x.mineral }));
+  targets.sites = named.filter(x => !x.ref && !x.mineral && inBox([x.lat, x.lon])).map(x =>
+    ({ name: x.name, code: x.code, ll: [x.lat, x.lon], sym: SYM[x.poi ? 'poi' : 'site'], detail: '' }));
+  for (const t of [...targets.ice, ...targets.mineral])
+    L.marker(t.ll, { ...inSector, icon: icon(t.sym + `<b>${t.code}</b>`) }).bindPopup(`<b>${t.name}</b><br>${t.detail}<br>${t.ll.map(v => v.toFixed(3)).join('°, ')}°`)
+      .on('click', () => pickTarget(t)).addTo(map);
+
+  legendBox.innerHTML = [
+    [SYM.site, 'Candidate landing site'], [SYM.poi, 'Point of interest'], [SYM.iceTarget, 'Ice deposit (objective)'],
+    [SYM.route, 'Safest route'], [SYM.hazard, 'Steepest point on route'], [SYM.extent, 'Sector data extent'],
+    layers.ice && [SYM.ice, 'Ice likely within 1 m (SWIM)'], hazards.loose && [SYM.loose, 'Loose or dusty ground (TES)'],
+    hazards.crater && [SYM.crater, 'Crater rim (Robbins catalog)'],
+  ].filter(Boolean).map(([s, t]) => `<span class="sym">${s}</span>${t}`).join('<br>');
+  $('seasonRow').hidden = !climate;
+  if (climate) $('season').innerHTML = climate.rows.map((r, i) =>
+    `<option value="${i}">Month ${i + 1} (Ls ${r.ls}°), ${SEASONS[Math.floor(r.ls / 90)]}${r.dust_storm != null ? ', dust storm season' : ''}</option>`).join('');
+  $('looseRow').hidden = !hazards.loose;
+  $('craterRow').hidden = !hazards.crater;
+})();
 const SEASONS = ['northern spring', 'northern summer', 'northern autumn', 'northern winter'];
-$('seasonRow').hidden = !climate;
-if (climate) $('season').innerHTML = climate.rows.map((r, i) =>
-  `<option value="${i}">Month ${i + 1} (Ls ${r.ls}°), ${SEASONS[Math.floor(r.ls / 90)]}${r.dust_storm != null ? ', dust storm season' : ''}</option>`).join('');
-$('looseRow').hidden = !hazards.loose;
-$('craterRow').hidden = !hazards.crater;
 $('crater').oninput = e => ($('craterv').textContent = `×${e.target.value}`);
 $('loose').oninput = e => ($('loosev').textContent = `×${e.target.value}`);
 $('max').oninput = e => ($('maxv').textContent = `${e.target.value}°`);
 
-// Start (A) / end (B)
-const pts = [], pins = [];
-const setPt = (k, ll) => { pts[k] = ll; pins[k]?.remove(); pins[k] = L.marker(ll, { icon: icon(k ? 'B' : 'A', `pin ${k ? 'b' : 'a'}`, 18), zIndexOffset: 1000 }).addTo(map); };
-['start', 'end'].forEach((id, k) => {
-  $(id).innerHTML = '<option value="">Choose a site, or click the map</option>' + named.map((s, i) => `<option value="${i}">${s.code} ${s.name}</option>`).join('');
-  $(id).onchange = e => e.target.value && setPt(k, [named[e.target.value].lat, named[e.target.value].lon]);
+// Sector card (world map)
+const AREA = ([a, b, c, d]) => (b - a) * 59.157 * (d - c) * 59.157 * Math.cos((a + b) * Math.PI / 360); // km², small box
+async function selectSector(sec) {
+  Object.values(nodes).forEach(m => m.getElement()?.firstElementChild.classList.remove('on'));
+  nodes[sec.id].getElement()?.firstElementChild.classList.add('on');
+  const card = $('card');
+  card.hidden = false;
+  $('hint').hidden = true;
+  const stat = (v, u, t) => `<div><b>${v}<small>${u}</small></b><span>${t}</span></div>`;
+  const body = () => `<div class="tag">Sector · ${sec.lat.toFixed(1)}°${sec.lat < 0 ? 'S' : 'N'} ${Math.abs(sec.lon).toFixed(1)}°${sec.lon < 0 ? 'W' : 'E'}</div>
+    <h2>${sec.name}</h2><span class="status ${sec.open ? 'open' : 'locked'}">${sec.open ? 'Open' : 'Locked'}</span><p>${sec.text}</p>
+    ${sec.open && meta ? `<div class="grid">${stat(Math.round(AREA(meta.bounds) / 1000), 'k km²', 'Area mapped')}
+      ${stat(targets.sites.length, '', 'Landing sites and stops')}${stat(targets.ice.length, '', 'Ice deposits')}
+      ${stat(targets.mineral.length || '—', '', 'Mineral sites')}</div>` : ''}
+    ${sec.open ? `<button id="enter" class="wide"${meta ? '' : ' disabled'}>${meta ? 'Enter sector ▶' : 'Loading terrain…'}</button>`
+      : `<p>No terrain data charted here yet. Prepare it with scripts/prep_dem.py (see README) to unlock this sector.</p><button class="wide alt" disabled>Locked</button>`}`;
+  card.innerHTML = body();
+  map.flyTo([sec.lat, sec.lon], Math.max(map.getZoom(), 3), { duration: 0.8 });
+  if (sec.open && !meta) { await dataReady; if (!card.hidden) card.innerHTML = body(); }
+  $('enter')?.addEventListener('click', () => enterSector());
+}
+map.on('click', e => { if (mode === 'world' && !e.originalEvent.target.closest?.('.node')) { $('card').hidden = true; $('hint').hidden = false; } });
+
+let mode = 'world';
+async function enterSector(animate = true) {
+  await dataReady;
+  if (!meta) return;
+  const sec = SECTORS.find(x => x.open);
+  mode = 'sector';
+  $('card').hidden = $('hint').hidden = true;
+  map.removeLayer(world);
+  $('panel').hidden = $('back').hidden = false;
+  $('crumb').innerHTML = `World map / <b>${sec.name}</b>`;
+  $('sectorName').textContent = sec.name;
+  const [a, b, c, d] = meta.bounds, f = v => Math.abs(v);
+  $('sectorWhere').textContent = `${f(a)}°N to ${f(b)}°N, ${f(c)}°W to ${f(d)}°W · ${sec.sub.split(' ·')[0]}`;
+  showSector(true);
+  legend.addTo(map);
+  const box = L.latLngBounds([[a, c], [b, d]]), opt = { paddingTopLeft: [20, 70], paddingBottomRight: [400, 20] };
+  animate ? map.flyToBounds(box, { ...opt, duration: 1.6 }) : map.fitBounds(box, opt);
+  setTab(tab);
+}
+function leaveSector() {
+  mode = 'world';
+  stopNav();
+  showSector(false);
+  legend.remove();
+  $('panel').hidden = $('back').hidden = $('nav').hidden = true;
+  $('hint').hidden = false;
+  $('crumb').innerHTML = '<b>World map</b>';
+  world.addTo(map);
+  map.flyTo(...WORLD_VIEW, { duration: 1.4 });
+}
+$('back').onclick = leaveSector;
+
+// Cursor readout: position anywhere, plus a terrain scan inside the sector
+map.on('mousemove', e => {
+  const { lat, lng } = e.latlng;
+  let t = `LAT <b>${Math.abs(lat).toFixed(2)}°${lat < 0 ? 'S' : 'N'}</b>  LON <b>${Math.abs(lng).toFixed(2)}°${lng < 0 ? 'W' : 'E'}</b>`;
+  if (meta) {
+    const [r, c] = latLonCell(meta, lat, lng);
+    if (r >= 0 && c >= 0 && r < meta.rows && c < meta.cols) {
+      const i = r * meta.cols + c;
+      t += `\nELEV <b>${h[i].toFixed(0)} m</b>  SLOPE <b>${s[i].toFixed(1)}°</b>${layers.ice ? `  ICE <b>${layers.ice[i].toFixed(2)}</b>` : ''}`;
+    }
+  }
+  $('readout').innerHTML = t;
 });
-let next = 0, stopMode = false;
+
+// Start (A), destination (B) and science stops
+const pts = [], pins = [];
+function setPt(k, ll) {
+  pts[k] = ll;
+  pins[k]?.remove();
+  pins[k] = L.marker(ll, { ...inSector, icon: icon(k ? 'B' : 'A', `pin ${k ? 'b' : 'a'}`, 18), zIndexOffset: 1000, draggable: true, title: 'Drag to move' })
+    .on('dragend', e => { const q = e.target.getLatLng(); pts[k] = [q.lat, q.lng]; if (!k) $('start').value = ''; renderTargets(); autoRoute(); })
+    .addTo(map);
+  if (!k) renderTargets();
+}
+const autoRoute = () => pts[0] && pts[1] && run(false);
+const startable = named.filter(x => !x.ref);
+$('start').innerHTML = '<option value="">Choose a landing site, or click the map</option>' + startable.map((x, i) => `<option value="${i}">${x.code} ${x.name}</option>`).join('');
+$('start').onchange = e => { if (e.target.value) { const x = startable[e.target.value]; setPt(0, [x.lat, x.lon]); autoRoute(); } };
+
+// Objectives: pick a tab, then a target; the route is plotted straight away
+let tab = 'ice', picked = null;
+const tabs = [...document.querySelectorAll('.tabs button')];
+tabs.forEach(b => (b.onclick = () => setTab(b.dataset.tab)));
+function setTab(k) { tab = k; tabs.forEach(b => b.classList.toggle('on', b.dataset.tab === k)); renderTargets(); }
+function renderTargets() {
+  if (!meta) return;
+  tabs.find(b => b.dataset.tab === 'mineral').classList.toggle('locked', !targets.mineral.length);
+  const km = t => (pts[0] ? `${Math.round(haversine(...pts[0], ...t.ll) / 1000)} km` : t.detail);
+  const list = (arr, extra = '') => arr.map((t, i) => `<button class="target${picked === t ? ' on' : ''}" data-i="${i}">${t.sym}<span>${t.name}</span><small>${km(t)}</small></button>`).join('') + extra;
+  const box = $('targets');
+  box.innerHTML = tab === 'ice' ? list(targets.ice, layers.ice?.some(v => v >= ICE_MIN) ? '<button id="ice" class="alt wide">Nearest reachable ice from A</button>' : '')
+    : tab === 'mineral' ? (targets.mineral.length ? list(targets.mineral)
+      : '<div class="locked-box"><b>Locked · no mineral survey</b>No mineral map is loaded for this sector yet, so mineral reserves can\'t be shown truthfully. Add mineral sites to public/sites.json with a "mineral" field (for example from CRISM or OMEGA maps) to unlock this objective.</div>')
+    : tab === 'sites' ? list(targets.sites)
+    : '<div class="locked-box"><b>Custom pin</b>Click anywhere inside the green box to drop destination B. Drag the pin to adjust; the route updates.</div>';
+  const arr = targets[tab] || [];
+  box.querySelectorAll('.target').forEach(b => (b.onclick = () => pickTarget(arr[+b.dataset.i])));
+  $('ice')?.addEventListener('click', () => run(true));
+}
+function pickTarget(t) {
+  picked = t;
+  setPt(1, t.ll);
+  renderTargets();
+  if (pts[0]) run(false); else msg('Objective set. Now choose where to deploy from (01).');
+}
+
+let stopMode = false;
 const stops = [], stopPins = [];
 map.on('click', e => {
+  if (mode !== 'sector') return;
   const ll = [e.latlng.lat, e.latlng.lng];
   if (stopMode) {
     stops.push(ll);
-    stopPins.push(L.marker(ll, { icon: icon(String(stops.length), 'pin stop', 18), zIndexOffset: 900 }).addTo(map));
+    stopPins.push(L.marker(ll, { ...inSector, icon: icon(String(stops.length), 'pin stop', 18), zIndexOffset: 900 }).addTo(map));
     $('clearStops').hidden = false;
     return;
   }
-  $(next ? 'end' : 'start').value = ''; setPt(next, ll); next ^= 1;
+  if (!pts[0]) { $('start').value = ''; setPt(0, ll); return; }
+  picked = null;
+  setPt(1, ll);
+  renderTargets();
+  autoRoute();
 });
 $('addStop').onclick = () => {
   stopMode = !stopMode;
@@ -123,16 +272,17 @@ $('addStop').onclick = () => {
 };
 $('clearStops').onclick = () => { stops.length = 0; stopPins.splice(0).forEach(m => m.remove()); $('clearStops').hidden = true; };
 
+const busy = on => ['go', 'ice'].forEach(id => $(id) && ($(id).disabled = on));
 const ask = m => new Promise(res => { worker.onmessage = e => res(e.data); worker.postMessage(m); });
 async function run(toIce) {
   if (!worker) return;
-  if (!pts[0] || (!toIce && !pts[1])) return msg(toIce ? 'Pick a start first.' : 'Pick a start and an end first.');
+  if (!pts[0] || (!toIce && !pts[1])) return msg(toIce ? 'Choose where to deploy from first (01).' : 'Choose a start (01) and an objective (02) first.');
   const cells = (toIce ? [pts[0]] : [pts[0], ...stops, pts[1]]).map(p => latLonCell(meta, ...p));
   if (cells.flat().some((v, i) => v < 0 || v >= (i % 2 ? meta.cols : meta.rows)))
-    return msg('All points must be inside the dashed elevation data box.');
-  if (!toIce) location.hash = [pts[0], pts[1]].flat().map(v => v.toFixed(4)).join(',');
-  msg(toIce ? 'Searching for the nearest likely ice.' : 'Working out the safest route.');
-  $('go').disabled = $('ice').disabled = true;
+    return msg('All points must be inside the green sector box.');
+  if (!toIce) history.replaceState(null, '', '#' + [pts[0], pts[1]].flat().map(v => v.toFixed(4)).join(','));
+  msg(toIce ? 'Scanning for the nearest likely ice.' : 'Plotting the safest route.');
+  busy(true);
   const base = { opts: { maxSlope: +$('max').value }, weights: { loose: +$('loose').value, crater: +$('crater').value } };
   let path = [];
   legEnds = [];
@@ -145,7 +295,6 @@ async function run(toIce) {
   show(path, toIce);
 }
 $('go').onclick = () => run(false);
-$('ice').onclick = () => run(true);
 
 // Weather block for the chosen Mars month (all values Estimated: a climate model, not a forecast)
 function weather(w) {
@@ -181,13 +330,13 @@ function marswalk(km) {
 let line, steep, chart, lastPath;
 function show(path, toIce) {
   lastPath = path;
-  $('go').disabled = $('ice').disabled = false;
+  busy(false);
   line?.remove(); steep?.remove(); chart?.destroy(); stopNav(); trip = null; $('nav').hidden = true;
   $('chartBox').hidden = !path;
   if (!path) return msg(toIce ? `No likely ice can be reached while staying under ${$('max').value}°.`
     : `No route stays under ${$('max').value}°. Allow a steeper slope or pick other points.`);
   const ll = path.map(([r, c]) => cellLatLon(meta, r, c)), idx = path.map(([r, c]) => r * meta.cols + c);
-  if (toIce) { $('end').value = ''; setPt(1, ll.at(-1)); }
+  if (toIce) { picked = null; setPt(1, ll.at(-1)); }
   let dist = 0, gain = 0, loss = 0, unknown = 0, looseN = 0, rimN = 0, maxS = -1, maxJ = 0;
   const cum = [];
   const prof = idx.map((i, j) => {
@@ -203,11 +352,12 @@ function show(path, toIce) {
     cum.push(dist);
     return { x: dist / 1000, y: h[i] };
   });
-  line = L.layerGroup([L.polyline(ll, { color: '#fff', weight: 7 }), L.polyline(ll, { color: '#f04e23', weight: 3.5 })]).addTo(map);
+  line = L.layerGroup([L.polyline(ll, { pane: 'sectorLines', color: '#000', weight: 7, opacity: 0.7 }),
+    L.polyline(ll, { pane: 'sectorLines', color: '#ff6a2b', weight: 3.5, className: 'route-glow' })]).addTo(map);
   const ends = legEnds.length ? legEnds : [idx.length - 1];
   trip = { ll, idx, cum, ends, names: ends.map((_, k) => (k === ends.length - 1 ? (toIce ? 'the ice' : 'B') : `stop ${k + 1}`)) };
   $('navGo').hidden = false;
-  steep = L.marker(ll[maxJ], { icon: icon(SYM.hazard, 'hazard') }).bindPopup(`Steepest point on the route: ${maxS.toFixed(0)}°`).addTo(map);
+  steep = L.marker(ll[maxJ], { ...inSector, icon: icon(SYM.hazard, 'hazard') }).bindPopup(`Steepest point on the route: ${maxS.toFixed(0)}°`).addTo(map);
   const km = dist / 1000, r10 = v => Math.round(v / 10) * 10;
   const stat = (v, u, t, wide) => `<div class="stat${wide ? ' wide' : ''}"><b>${v}<small>${u}</small></b><span>${t}</span></div>`;
   $('summary').innerHTML = `<p class="kicker">Measured from MOLA elevation</p><div class="stats">
@@ -225,7 +375,7 @@ function show(path, toIce) {
     <p class="note">Every step stays under ${$('max').value}° at 463 m resolution. Smaller hazards are not visible.</p>`;
   chart = new Chart($('profile'), {
     type: 'line',
-    data: { datasets: [{ data: prof, pointRadius: 0, borderWidth: 2, borderColor: '#f04e23' }] },
+    data: { datasets: [{ data: prof, pointRadius: 0, borderWidth: 2, borderColor: '#ff6a2b', fill: true, backgroundColor: 'rgba(255,106,43,.12)' }] },
     options: { animation: false, interaction: { mode: 'index', intersect: false },
       plugins: { legend: { display: false }, tooltip: { callbacks: { title: i => `${i[0].parsed.x.toFixed(0)} km`, label: i => `${i.parsed.y.toFixed(0)} m` } } },
       scales: { x: { type: 'linear', max: Math.ceil(km), grid: { display: false }, ticks: { includeBounds: false, callback: v => `${v} km` } },
@@ -257,8 +407,8 @@ function stopNav() {
 function startNav() {
   if (!trip) return;
   const m = MODES[$('mode').value], v = m.v[0] * 1000, eva = +$('eva').value, total = trip.cum.at(-1);
-  map.fitBounds(L.latLngBounds(trip.ll).pad(0.4), { animate: false }); // zoom to the route so the walk is visible
-  const me = L.marker(trip.ll[0], { icon: icon('', 'me', 16), zIndexOffset: 2000 }).addTo(map);
+  map.fitBounds(L.latLngBounds(trip.ll).pad(0.4), { animate: false, paddingBottomRight: [380, 0] }); // zoom to the route so the walk is visible
+  const me = L.marker(trip.ll[0], { ...inSector, icon: icon('', 'me', 16), zIndexOffset: 2000 }).addTo(map);
   nav = { me, t0: performance.now(), scale: Math.max(total / v, 0.05) * 3600 / 60 }; // sim seconds per real second
   $('navGo').textContent = 'Stop';
   $('nav').hidden = false;
@@ -293,6 +443,6 @@ $('navGo').onclick = () => (nav && $('navGo').textContent === 'Stop' ? stopNav()
 
 $('v3d').onclick = async () => meta && (await import('./view3d.js')).open3D(h, meta, lastPath);
 
-// Shareable link: #startLat,startLon,endLat,endLon
+// Shareable link: #startLat,startLon,endLat,endLon opens the sector with that route
 const q = location.hash.slice(1).split(',').map(Number);
-if (q.length === 4 && q.every(Number.isFinite)) { setPt(0, q.slice(0, 2)); setPt(1, q.slice(2)); $('go').click(); }
+if (q.length === 4 && q.every(Number.isFinite)) { await enterSector(false); setPt(0, q.slice(0, 2)); setPt(1, q.slice(2)); run(false); }

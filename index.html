@@ -3,103 +3,211 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <meta name="theme-color" content="#ffffff" />
+  <meta name="theme-color" content="#07090c" />
   <link rel="icon" href="icon.svg" />
   <title>Martian Map</title>
   <style>
-    :root { --ink: #000; --paper: #fff; --orange: #f04e23; --narrow: 'Archivo Narrow', 'Arial Narrow', sans-serif; }
+    :root {
+      --bg: #07090c; --panel: rgba(10, 13, 17, .9); --line: rgba(255, 255, 255, .14); --text: #e9edf1; --dim: #8b97a3;
+      --orange: #ff6a2b; --cyan: #3fd4ff; --amber: #ffb547; --green: #7dffa8; --lock: #5d6670;
+      --narrow: 'Archivo Narrow', 'Arial Narrow', sans-serif; --mono: ui-monospace, 'SF Mono', Consolas, monospace;
+    }
     * { box-sizing: border-box; }
-    html, body { margin: 0; height: 100%; background: var(--paper); color: var(--ink);
+    [hidden] { display: none !important; }
+    html, body { margin: 0; height: 100%; overflow: hidden; background: var(--bg); color: var(--text);
                  font: 14px/1.4 Archivo, Arial, sans-serif; font-variant-numeric: tabular-nums; }
-    body { display: flex; flex-direction: column; }
-    a { color: var(--ink); text-underline-offset: 2px; }
-    header { display: flex; justify-content: space-between; align-items: flex-end; gap: 16px; padding: 14px 20px 10px; border-bottom: 4px solid var(--ink); }
-    header h1 { margin: 0; font: 700 30px/0.95 var(--narrow); letter-spacing: -0.5px; }
-    header p { margin: 0; font-size: 12px; text-align: right; }
-    main { flex: 1; display: flex; min-height: 0; position: relative; }
-    #map { flex: 1; background: var(--paper); }
-    aside { width: 340px; overflow: auto; border-left: 1px solid var(--ink); }
-    aside section { padding: 16px 20px 4px; }
-    h2 { margin: 0 0 8px; font: 700 20px var(--narrow); }
-    label { display: flex; justify-content: space-between; font-size: 12px; font-weight: 500; margin: 10px 0 4px; }
-    output { font: inherit; }
-    select { width: 100%; font: inherit; color: var(--ink); background: var(--paper); border: 1px solid var(--ink); border-radius: 0; padding: 7px 8px; }
-    input[type=range] { width: 100%; margin: 2px 0; accent-color: var(--ink); }
-    .hint, .note { font-size: 12px; margin: 8px 0 0; }
-    .buttons { display: flex; gap: 8px; margin-top: 14px; }
-    button { font: 700 14px Archivo, Arial, sans-serif; border-radius: 0; padding: 10px 14px; cursor: pointer;
-             border: 2px solid var(--ink); background: var(--ink); color: var(--paper); }
-    button.alt { background: var(--paper); color: var(--ink); }
-    button:hover { background: var(--orange); border-color: var(--orange); color: var(--paper); }
+    a { color: var(--cyan); text-underline-offset: 2px; }
+    #map { position: fixed; inset: 0; background: var(--bg); }
+    .vignette { position: fixed; inset: 0; pointer-events: none; z-index: 400;
+      background: radial-gradient(ellipse at center, transparent 55%, rgba(0,0,0,.65) 100%),
+                  repeating-linear-gradient(0deg, rgba(255,255,255,.018) 0 1px, transparent 1px 3px); }
+
+    /* HUD frame */
+    .hud { position: fixed; z-index: 1000; }
+    #top { top: 0; left: 0; right: 0; display: flex; align-items: center; gap: 18px; padding: 12px 18px;
+           background: linear-gradient(rgba(5,7,9,.92), rgba(5,7,9,0)); pointer-events: none; }
+    #top > * { pointer-events: auto; }
+    .logo { font: 700 22px/0.9 var(--narrow); letter-spacing: 1px; text-transform: uppercase; }
+    .logo span { color: var(--orange); }
+    #crumb { font: 700 13px var(--narrow); letter-spacing: 3px; text-transform: uppercase; color: var(--dim); }
+    #crumb b { color: var(--text); }
+    #readout { margin-left: auto; font: 12px var(--mono); color: var(--dim); text-align: right; white-space: pre; }
+    #readout b { color: var(--text); font-weight: 400; }
+    #back { padding: 7px 12px; font-size: 12px; }
+    #hint { bottom: 26px; left: 50%; transform: translateX(-50%); font: 700 13px var(--narrow); letter-spacing: 3px;
+            text-transform: uppercase; color: var(--text); text-shadow: 0 1px 4px #000; pointer-events: none;
+            animation: breathe 2.4s ease-in-out infinite; white-space: nowrap; }
+    @keyframes breathe { 50% { opacity: .45; } }
+
+    /* Panels */
+    .panel { background: var(--panel); border: 1px solid var(--line); backdrop-filter: blur(6px); }
+    .panel::before, .panel::after { content: ''; position: absolute; width: 14px; height: 14px; border: 2px solid var(--orange); }
+    .panel::before { top: -2px; left: -2px; border-right: 0; border-bottom: 0; }
+    .panel::after { bottom: -2px; right: -2px; border-left: 0; border-top: 0; }
+    .tag { font: 700 11px var(--narrow); letter-spacing: 2.5px; text-transform: uppercase; color: var(--dim); }
+    h2 { margin: 2px 0 8px; font: 700 28px/1 var(--narrow); letter-spacing: .5px; text-transform: uppercase; }
+    h3 { margin: 18px 0 8px; font: 700 12px var(--narrow); letter-spacing: 2.5px; text-transform: uppercase; color: var(--orange); }
+    h3 i { font-style: normal; color: var(--dim); margin-right: 6px; }
+
+    /* World: sector card */
+    #card { right: 24px; top: 50%; transform: translateY(-50%); width: 340px; padding: 20px 22px; }
+    #card p { color: var(--dim); font-size: 13px; margin: 8px 0; }
+    #card .status { display: inline-block; font: 700 11px var(--narrow); letter-spacing: 2px; text-transform: uppercase;
+                    padding: 3px 8px; border: 1px solid currentColor; }
+    #card .status.open { color: var(--green); } #card .status.locked { color: var(--lock); }
+    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px 16px; margin: 14px 0; }
+    .grid div b { display: block; font: 700 26px/1 var(--narrow); }
+    .grid div b small { font-size: 13px; margin-left: 2px; color: var(--dim); }
+    .grid div span { font-size: 11px; color: var(--dim); text-transform: uppercase; letter-spacing: 1px; }
+
+    /* Buttons and inputs */
+    button { font: 700 13px var(--narrow); letter-spacing: 2px; text-transform: uppercase; border-radius: 0; padding: 10px 14px;
+             cursor: pointer; border: 1px solid var(--orange); background: var(--orange); color: #000; }
+    button.alt { background: transparent; color: var(--text); border-color: var(--line); }
+    button:hover { background: var(--text); border-color: var(--text); color: #000; }
     button:active { transform: translateY(1px); }
-    button:focus-visible, select:focus-visible, input:focus-visible { outline: 3px solid var(--orange); outline-offset: 2px; }
-    button:disabled { opacity: .5; cursor: wait; }
-    #go { flex: 1; }
-    #ice { width: 100%; margin-top: 8px; }
-    #nav { position: absolute; top: 12px; left: 60px; z-index: 1000; width: min(440px, calc(100% - 420px)); background: var(--ink); color: var(--paper); padding: 10px 14px; }
-    #nav .next b { font: 700 40px/1 var(--narrow); } #nav .next small { font-size: 16px; margin-left: 3px; }
-    #nav .next span { display: block; font-size: 14px; margin-top: 2px; }
-    #nav .row { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 12px; margin-top: 6px; }
-    #nav .warn { margin-top: 6px; padding: 4px 8px; background: var(--orange); font-size: 13px; font-weight: 700; }
-    .me { background: var(--orange); border: 3px solid var(--paper); border-radius: 50%; box-shadow: 0 0 0 2px var(--ink); }
-    #addStop.on { background: var(--orange); border-color: var(--orange); color: var(--paper); }
-    .pin.stop { background: var(--orange); color: var(--paper); border-color: var(--ink); }
-    .sources table { width: 100%; border-collapse: collapse; font-size: 12px; }
-    .sources td { padding: 3px 0; border-bottom: 1px solid var(--ink); vertical-align: top; }
-    .sources td:first-child { font-weight: 700; padding-right: 10px; white-space: nowrap; }
-    .kicker { margin: 14px 0 6px; padding-top: 6px; border-top: 1px solid var(--ink); font-size: 12px; font-weight: 700; }
+    button:focus-visible, select:focus-visible, input:focus-visible, summary:focus-visible { outline: 2px solid var(--cyan); outline-offset: 2px; }
+    button:disabled { opacity: .45; cursor: wait; }
+    button.wide { width: 100%; }
+    .buttons { display: flex; gap: 8px; margin-top: 12px; }
+    .buttons > button:first-child { flex: 1; }
+    label { display: flex; justify-content: space-between; font-size: 12px; color: var(--dim); margin: 10px 0 4px; }
+    output { font: inherit; color: var(--text); }
+    select { width: 100%; font: inherit; color: var(--text); background: #11161b; border: 1px solid var(--line); border-radius: 0; padding: 8px; }
+    input[type=range] { width: 100%; margin: 2px 0; accent-color: var(--orange); }
+    .hint, .note { font-size: 12px; color: var(--dim); margin: 8px 0 0; }
+
+    /* Sector: mission planner */
+    #panel { top: 62px; right: 18px; bottom: 18px; width: 360px; display: flex; flex-direction: column; }
+    #panel .scroll { overflow: auto; padding: 18px 20px 20px; }
+    .tabs { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; }
+    .tabs button { padding: 8px 2px; font-size: 11px; letter-spacing: 1px; background: transparent; color: var(--dim); border-color: var(--line); }
+    .tabs button.on { color: #000; background: var(--text); border-color: var(--text); }
+    .tabs button.locked { color: var(--lock); }
+    #targets { margin-top: 8px; display: flex; flex-direction: column; gap: 4px; max-height: 230px; overflow: auto; }
+    .target { display: flex; align-items: center; gap: 10px; width: 100%; text-align: left; padding: 8px 10px; background: rgba(255,255,255,.03);
+              border: 1px solid var(--line); color: var(--text); font: 13px Archivo, Arial, sans-serif; letter-spacing: 0; text-transform: none; }
+    .target:hover, .target.on { background: rgba(255,106,43,.14); border-color: var(--orange); color: var(--text); }
+    .target svg { flex: none; }
+    .target span { flex: 1; } .target small { color: var(--dim); font: 11px var(--mono); }
+    .locked-box { padding: 12px; border: 1px dashed var(--lock); color: var(--dim); font-size: 12px; }
+    .locked-box b { display: block; color: var(--text); font: 700 12px var(--narrow); letter-spacing: 2px; text-transform: uppercase; margin-bottom: 4px; }
+    details { margin-top: 16px; border-top: 1px solid var(--line); padding-top: 10px; }
+    summary { cursor: pointer; font: 700 12px var(--narrow); letter-spacing: 2.5px; text-transform: uppercase; color: var(--dim); }
+    .kicker { margin: 14px 0 6px; padding-top: 6px; border-top: 1px solid var(--line); font: 700 11px var(--narrow); letter-spacing: 2px; text-transform: uppercase; color: var(--dim); }
     .stats { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 16px; }
-    .stat b { display: block; font: 700 30px/1 var(--narrow); letter-spacing: -0.5px; }
-    .stat b small { font-size: 15px; margin-left: 3px; letter-spacing: 0; }
-    .stat.wide { grid-column: 1 / -1; } .stat.wide b { font-size: 52px; }
-    .stat span { display: block; font-size: 12px; margin-top: 3px; }
+    .stat b { display: block; font: 700 28px/1 var(--narrow); }
+    .stat b small { font-size: 14px; margin-left: 3px; color: var(--dim); }
+    .stat.wide { grid-column: 1 / -1; } .stat.wide b { font-size: 50px; color: var(--orange); }
+    .stat span { display: block; font-size: 12px; color: var(--dim); margin-top: 3px; }
     .stat span svg { vertical-align: -1px; margin-left: 4px; }
     #chartBox[hidden] { display: none; }
-    .limits { margin-top: 12px; padding-bottom: 18px !important; border-top: 4px solid var(--ink); }
-    .limits p { margin: 0; font-size: 12px; }
-    footer { padding: 8px 20px; font-size: 11px; border-top: 1px solid var(--ink); }
+    .sources table { width: 100%; border-collapse: collapse; font-size: 12px; margin-top: 8px; }
+    .sources td { padding: 4px 0; border-bottom: 1px solid var(--line); vertical-align: top; color: var(--dim); }
+    .sources td:first-child { color: var(--text); padding-right: 10px; white-space: nowrap; }
+    #addStop.on { background: var(--orange); border-color: var(--orange); color: #000; }
+
+    /* Navigation HUD */
+    #nav { top: 62px; left: 50%; transform: translateX(calc(-50% - 190px)); width: min(440px, calc(100% - 440px)); padding: 10px 14px; }
+    #nav .next b { font: 700 40px/1 var(--narrow); color: var(--orange); } #nav .next small { font-size: 16px; margin-left: 3px; }
+    #nav .next span { display: block; font-size: 14px; margin-top: 2px; }
+    #nav .row { display: flex; flex-wrap: wrap; gap: 4px 14px; font: 12px var(--mono); color: var(--dim); margin-top: 6px; }
+    #nav .warn { margin-top: 6px; padding: 4px 8px; background: var(--orange); color: #000; font-size: 13px; font-weight: 700; }
+
     /* Map */
-    .relief { filter: grayscale(1) contrast(.95) brightness(1.1); }
-    .leaflet-container { font: 12px Archivo, Arial, sans-serif; }
-    .leaflet-bar, .leaflet-control-layers { border: 1px solid var(--ink) !important; border-radius: 0 !important; box-shadow: none !important; }
-    .leaflet-bar a { color: var(--ink) !important; border-radius: 0 !important; }
-    .leaflet-popup-content-wrapper, .leaflet-popup-tip { border-radius: 0; box-shadow: none; border: 1px solid var(--ink); }
-    .leaflet-control-attribution { color: var(--ink); }
-    .legend { background: var(--paper); padding: 8px 10px; font-size: 11px; line-height: 1.8; border: 1px solid var(--ink); }
+    .relief { filter: saturate(1.15) brightness(.82) contrast(1.05); }
+    #map.leaflet-container { font: 12px Archivo, Arial, sans-serif; background: var(--bg); }
+    #map .leaflet-bar, #map .leaflet-control-layers { border: 1px solid var(--line) !important; border-radius: 0 !important; box-shadow: none !important; background: var(--panel) !important; color: var(--text); }
+    #map .leaflet-bar a { color: var(--text) !important; background: transparent !important; border-radius: 0 !important; border-color: var(--line) !important; }
+    #map .leaflet-control-layers-expanded { padding: 8px 10px; }
+    #map .leaflet-top { top: 60px; }
+    #map .leaflet-popup-content-wrapper, #map .leaflet-popup-tip { border-radius: 0; box-shadow: none; border: 1px solid var(--line); background: var(--panel); color: var(--text); }
+    #map .leaflet-popup-content-wrapper small { color: var(--dim); }
+    #map a.leaflet-popup-close-button { color: var(--dim); }
+    #map .leaflet-control-attribution { background: rgba(5,7,9,.7) !important; color: var(--dim); }
+    #map .leaflet-control-attribution a { color: var(--dim); }
+    .legend { background: var(--panel); padding: 8px 10px; font-size: 11px; line-height: 1.8; border: 1px solid var(--line); color: var(--text); }
     .sym { display: inline-block; width: 14px; text-align: center; margin-right: 6px; }
-    .mk svg, .hazard svg { display: block; }
-    .mk b { position: absolute; left: 15px; top: -1px; font-size: 10px; font-weight: 700; white-space: nowrap;
-            text-shadow: 0 0 2px #fff, 0 0 2px #fff, 0 0 3px #fff; }
-    .pin { border-radius: 50%; font: 700 10px/16px Archivo, Arial, sans-serif; text-align: center; border: 1px solid var(--ink); }
-    .pin.a { background: var(--paper); color: var(--ink); } .pin.b { background: var(--ink); color: var(--paper); }
+    .sym svg { vertical-align: -1px; }
+    .mk svg, .hazard svg { display: block; filter: drop-shadow(0 0 3px rgba(0,0,0,.9)); }
+    .mk b { position: absolute; left: 16px; top: -1px; font: 700 11px var(--narrow); letter-spacing: .5px; white-space: nowrap; color: var(--text);
+            text-shadow: 0 0 3px #000, 0 0 3px #000, 0 0 5px #000; }
+    .pin { border-radius: 50%; font: 700 10px/16px Archivo, Arial, sans-serif; text-align: center; border: 1px solid #000; box-shadow: 0 0 8px rgba(0,0,0,.8); }
+    .pin.a { background: var(--text); color: #000; } .pin.b { background: var(--orange); color: #000; }
+    .pin.stop { background: var(--amber); color: #000; }
+    .leaflet-marker-draggable.pin { cursor: grab; }
+    .me { background: var(--orange); border: 3px solid var(--text); border-radius: 50%; box-shadow: 0 0 12px var(--orange); }
+    .route-glow { filter: drop-shadow(0 0 6px rgba(255,106,43,.9)); }
+    /* World: sector nodes and labels */
+    .node { position: relative; }
+    .node .ring { position: absolute; inset: 0; border: 2px solid var(--c); border-radius: 50%; }
+    .node .ring.pulse { animation: pulse 2s ease-out infinite; }
+    .node .ring.pulse.late { animation-delay: 1s; }
+    @keyframes pulse { from { transform: scale(.5); opacity: 1; } to { transform: scale(2.2); opacity: 0; } }
+    .node .core { position: absolute; inset: 35%; background: var(--c); transform: rotate(45deg); box-shadow: 0 0 12px var(--c); }
+    .node .label { position: absolute; left: calc(100% + 6px); top: 50%; transform: translateY(-50%); white-space: nowrap;
+                   font: 700 13px/1.1 var(--narrow); letter-spacing: 1.5px; text-transform: uppercase; color: var(--text); text-shadow: 0 0 4px #000, 0 0 4px #000; }
+    .node .label small { display: block; font: 400 10px var(--mono); letter-spacing: 0; color: var(--c); text-transform: none; }
+    .node.locked .label small { color: #c3cbd3; }
+    .node .label { background: linear-gradient(90deg, rgba(5,7,9,.75), rgba(5,7,9,0)); padding: 3px 14px 3px 6px; }
+    .node.open { --c: var(--green); cursor: pointer; } .node.locked { --c: var(--lock); cursor: pointer; }
+    .node.on .core { background: var(--text); }
+    .feature { font: 700 11px var(--narrow); letter-spacing: 3px; text-transform: uppercase; color: rgba(255,255,255,.55);
+               text-shadow: 0 0 4px #000; white-space: nowrap; transform: translate(-50%, -50%); pointer-events: none; }
+    .sector-box { filter: drop-shadow(0 0 6px rgba(125,255,168,.8)); }
     /* 3D overlay */
     #view3d { position: fixed; inset: 0; z-index: 2000; background: #2a1a14; }
     #view3d button { position: absolute; top: 14px; left: 14px; }
     #view3d p { position: absolute; left: 14px; bottom: 12px; margin: 0; font-size: 12px; color: #fff; text-shadow: 0 1px 2px #000; }
     @media (max-width: 760px) {
-      html, body { height: auto; } body { display: block; }
-      main { flex-direction: column; } #map { flex: none; height: 55vh; }
-      aside { width: auto; border-left: 0; overflow: visible; }
-      header p { display: none; }
-      #nav { left: 12px; right: 12px; width: auto; top: 70px; }
+      #readout { display: none; }
+      #card { left: 12px; right: 12px; top: auto; bottom: 12px; transform: none; width: auto; }
+      #panel { top: auto; left: 0; right: 0; bottom: 0; width: auto; height: 52vh; }
+      #nav { left: 12px; right: 12px; width: auto; transform: none; }
+      #hint { font-size: 11px; letter-spacing: 1.5px; }
     }
   </style>
 </head>
 <body>
-  <header>
-    <h1>Martian<br>Map</h1>
-    <p>Safe Marswalks near shallow ice<br>Arcadia and Amazonis Planitia, Mars, 37.5°N to 41°N, 171°W to 156°W</p>
-  </header>
-  <main>
-    <div id="map"></div>
-    <div id="nav" hidden></div>
-    <aside>
-      <section>
-        <h2>Route</h2>
-        <label for="start">From</label><select id="start"></select>
-        <label for="end">To</label><select id="end"></select>
-        <p class="hint">Or click the map twice: first the start, then the end.</p>
-        <div class="buttons"><button id="addStop" class="alt">Add science stops</button><button id="clearStops" class="alt" hidden>Clear stops</button></div>
+  <div id="map"></div>
+  <div class="vignette"></div>
+
+  <div id="top" class="hud">
+    <div class="logo">Martian<br><span>Map</span></div>
+    <button id="back" class="alt" hidden>◀ World map</button>
+    <div id="crumb"><b>World map</b></div>
+    <div id="readout"></div>
+  </div>
+  <div id="hint" class="hud">Drag to explore Mars · select a glowing sector</div>
+  <div id="card" class="hud panel" hidden></div>
+  <div id="nav" class="hud panel" hidden></div>
+
+  <aside id="panel" class="hud panel" hidden>
+    <div class="scroll">
+      <div class="tag">Sector · mission planner</div>
+      <h2 id="sectorName"></h2>
+      <div class="note" id="sectorWhere"></div>
+
+      <h3><i>01</i>Deploy from</h3>
+      <select id="start" aria-label="Start (A)"></select>
+      <p class="hint">Or click the map. Drag a pin to move it.</p>
+
+      <h3><i>02</i>Objective</h3>
+      <div class="tabs" role="tablist">
+        <button data-tab="ice" role="tab">Ice</button>
+        <button data-tab="mineral" role="tab">Minerals</button>
+        <button data-tab="sites" role="tab">Sites</button>
+        <button data-tab="pin" role="tab">Pin</button>
+      </div>
+      <div id="targets"></div>
+
+      <div class="buttons"><button id="go">Plot route</button><button id="navGo" class="alt" hidden>Go</button><button id="v3d" class="alt">3D</button></div>
+
+      <div id="summaryBox"><h3><i>03</i>Route report</h3><div id="summary"><p class="note">No route yet.</p></div></div>
+      <section id="chartBox" hidden><h3>Elevation profile</h3><canvas id="profile" height="150"></canvas></section>
+
+      <details>
+        <summary>Loadout and conditions</summary>
         <label for="mode">Travel</label><select id="mode"><option value="walk">On foot, 2 astronauts</option><option value="rover">Unpressurised rover, 2 astronauts</option></select>
         <label for="eva">EVA length</label><select id="eva"><option value="4">4 hours</option><option value="6">6 hours</option><option value="8" selected>8 hours</option></select>
         <label for="max">Steepest slope allowed <output id="maxv">15°</output></label>
@@ -109,12 +217,11 @@
         <input id="loose" type="range" value="1" min="0" max="3" step="0.5" /></div>
         <div id="craterRow"><label for="crater">Crater rim penalty <output id="craterv">×1</output></label>
         <input id="crater" type="range" value="1" min="0" max="3" step="0.5" /></div>
-        <div class="buttons"><button id="go">Find safest route</button><button id="navGo" class="alt" hidden>Go</button><button id="v3d" class="alt">3D view</button></div>
-        <button id="ice" class="alt">Route from A to the nearest likely ice</button>
-      </section>
-      <section><h2>Summary</h2><div id="summary"><p class="note">No route yet.</p></div></section>
-      <section id="chartBox" hidden><h2>Elevation profile</h2><canvas id="profile" height="160"></canvas></section>
-      <section class="sources"><h2>Data in this map</h2>
+        <div class="buttons"><button id="addStop" class="alt">Add science stops</button><button id="clearStops" class="alt" hidden>Clear</button></div>
+      </details>
+
+      <details class="sources">
+        <summary>Data in this map</summary>
         <table>
           <tr><td>Topographic</td><td>MOLA elevation and slope (Mars Global Surveyor)</td></tr>
           <tr><td>Optical</td><td>CTX mosaic and HiRISE images (Mars Reconnaissance Orbiter)</td></tr>
@@ -126,19 +233,14 @@
           <tr><td>Geologic</td><td>Robbins and Hynek crater catalog</td></tr>
         </table>
         <p class="note">No lander or rover has visited Arcadia or Amazonis, so there are no ground-level photos yet. Site popups link to HiRISE close-ups from orbit.</p>
-      </section>
-      <section class="limits"><h2>What this map can't see</h2>
-        <p>Anything smaller than about 460 m (boulders, small craters, cliffs), loose sand or dust that can trap a rover
-          or tire a walker, and weather such as dust storms. Check higher-resolution imagery before travel.</p>
-      </section>
-    </aside>
-  </main>
-  <footer>
-    Elevation from the <a href="https://astrogeology.usgs.gov/search/map/mars_mgs_mola_dem_463m">USGS MOLA DEM 463 m</a>.
-    Map tiles from <a href="https://trek.nasa.gov/mars/">NASA Mars Trek</a> (MOLA relief, and the CTX mosaic by the Caltech Murray Lab).
-    Site positions from <a href="https://www.uahirise.org">HiRISE</a>, University of Arizona.
-    Place names from the <a href="https://planetarynames.wr.usgs.gov/Feature/1821">USGS Gazetteer of Planetary Nomenclature</a>.
-  </footer>
+        <p class="note">What this map can't see: anything smaller than about 460 m (boulders, small craters, cliffs), loose sand or dust that can trap
+          a rover or tire a walker, and weather such as dust storms. Check higher-resolution imagery before travel.</p>
+        <p class="note">Elevation: <a href="https://astrogeology.usgs.gov/search/map/mars_mgs_mola_dem_463m">USGS MOLA DEM 463 m</a>. Tiles:
+          <a href="https://trek.nasa.gov/mars/">NASA Mars Trek</a>. Sites: <a href="https://www.uahirise.org">HiRISE</a>, NASA/JPL.
+          Names: <a href="https://planetarynames.wr.usgs.gov/">USGS Gazetteer of Planetary Nomenclature</a>.</p>
+      </details>
+    </div>
+  </aside>
   <script type="module" src="/src/main.js"></script>
 </body>
 </html>

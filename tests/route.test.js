@@ -60,3 +60,14 @@ test('loose ground: firm and dust-free is 0, powdery or dusty is 1, no data is 0
   expect(loose(105, 0.97)).toBeCloseTo(0.5);
   expect(loose(NaN, NaN)).toBe(0);
 });
+
+import { peaks } from '../src/targets.js';
+
+test('targets: strongest spots first, spaced apart, below-threshold cells ignored', () => {
+  const meta = { bounds: [0, 1, 0, 1], rows: 10, cols: 10 }; // ~5.9 km cells
+  const g = new Float32Array(100);
+  g[0] = 0.9; g[1] = 0.8; g[99] = 0.7; g[50] = 0.1;
+  const t = peaks(g, meta, { min: 0.3, sepKm: 20 });
+  expect(t.map(x => x.value.toFixed(1))).toEqual(['0.9', '0.7']); // cell 1 is next to cell 0, so it is merged
+  expect(t[1].cell).toEqual([9, 9]);
+});

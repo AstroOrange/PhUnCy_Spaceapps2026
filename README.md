@@ -8,8 +8,17 @@ with shallow ice: SpaceX Starship candidate sites (S1-S9) and the NASA Ames cand
 rover site, no shallow ice) was built and is in the git history (commit 8704b26).
 
 ## What it does
-- Map of Mars (NASA Mars Trek MOLA relief / CTX imagery) with candidate sites (black squares) and points of interest (open diamonds).
-- Pick start and end (dropdowns or map clicks) and get one route, found by A* in a Web Worker on an 8-neighbour grid:
+- World hub: the whole of Mars (NASA Mars Trek MOLA colour relief / CTX imagery) to pan and zoom, with landmark labels and
+  sector nodes. Arcadia Planitia is open; Jezero, Gale and Oxia Planum are shown as locked until their terrain data is prepared
+  (sectors are listed in `src/hub.js`). Select a sector for its card, then "Enter sector" to fly in.
+- Mission planner inside the sector: deploy from a landing site, then pick an objective:
+  - Ice: the 8 strongest SWIM ice spots (score 0.3 or more, at least 50 km apart, picked in `src/targets.js`),
+    or "nearest reachable ice" from A.
+  - Minerals: locked until mineral sites are added to `public/sites.json` with a `"mineral"` field
+    (for example from CRISM or OMEGA maps). No mineral map is loaded, so none are invented.
+  - Sites: candidate landing sites and points of interest. Pin: click the map to drop B. Pins can be dragged.
+- Cursor readout: latitude and longitude anywhere; elevation, slope and ice score inside the sector.
+- Route between A and B, found by A* in a Web Worker on an 8-neighbour grid:
   step cost = distance × (1 + 0.1 × slope° + extra hazards). Slopes over the limit (default 15°) are blocked;
   cells with no data are high-cost "unknown", never treated as flat.
 - Extra hazards, each with its own penalty slider and map overlay:
@@ -33,7 +42,7 @@ rover site, no shallow ice) was built and is in the git history (commit 8704b26)
 - "3D view": Three.js terrain (≤500×500 vertices, 3× vertical exaggeration, low sun and shadows), real CTX imagery
   draped on top, route drawn as a smoothed tube a few metres above the ground.
 - Works offline (PWA): app and data are cached; map tiles you have viewed stay cached.
-- Shareable link: the URL hash stores `startLat,startLon,endLat,endLon`.
+- Shareable link: the URL hash stores `startLat,startLon,endLat,endLon` and opens the sector with that route.
 
 ## Run
     npm install
@@ -65,6 +74,8 @@ Longitudes are -180..180 east (except `fetch_mcd.py`, which takes 0..360 east). 
 - Erebus Montes reference point: USGS Gazetteer of Planetary Nomenclature, https://planetarynames.wr.usgs.gov/Feature/1821
 
 ## Limitations
+- TES thermal inertia has a north-south orbit-track stripe near 164°W (values above 300 in a narrow column), so it is not
+  used to mark rock outcrops. It still feeds the loose-ground hazard, where the stripe only lowers the penalty locally.
 - 463 m cells: boulders, small craters, cliffs and anything under ~460 m are invisible.
 - Loose ground, ice and crater data are coarser than the grid (SWIM about 3 km, TES about 3 km); they mark zones, not exact spots.
 - Ice scores here peak at 0.50 on a -1 to +1 scale: "likely" means the orbiter data is consistent with ice, not proof.
