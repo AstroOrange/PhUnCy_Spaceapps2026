@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#faf8f3" />
+  <link rel="icon" href="icon.svg" />
+  <title>Martian Map</title>
+  <style>
+    :root { --paper: #f3f0e8; --side: #faf8f3; --ink: #1d1c1a; --dim: #6b665d; --rule: #d6d0c3;
+            --red: #c62828; --blue: #1f5fa8; }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; height: 100%; background: var(--paper); color: var(--ink);
+                 font: 14px/1.5 'Public Sans', Arial, sans-serif; font-variant-numeric: tabular-nums; }
+    body { display: flex; flex-direction: column; }
+    a { color: var(--ink); text-underline-offset: 2px; }
+    header { display: flex; justify-content: space-between; align-items: baseline; gap: 16px;
+             padding: 10px 20px; border-bottom: 2px solid var(--ink); background: var(--side); }
+    header h1 { margin: 0; font-size: 17px; font-weight: 700; }
+    header h1 span { font-weight: 400; color: var(--dim); margin-left: 10px; }
+    header p { margin: 0; font-size: 12px; color: var(--dim); }
+    main { flex: 1; display: flex; min-height: 0; }
+    #map { flex: 1; background: var(--paper); }
+    aside { width: 330px; overflow: auto; background: var(--side); border-left: 1px solid var(--rule); }
+    aside section { padding: 16px 20px 6px; }
+    aside .limits { margin-top: 10px; padding-bottom: 18px; border-top: 1px solid var(--rule); }
+    h2 { margin: 0 0 10px; font-size: 14px; font-weight: 700; }
+    h3 { margin: 14px 0 2px; font-size: 12px; font-weight: 600; color: var(--dim); }
+    label { display: flex; justify-content: space-between; font-size: 12px; color: var(--dim); margin: 10px 0 4px; }
+    output { font: inherit; color: var(--ink); font-weight: 600; }
+    select { width: 100%; font: inherit; color: var(--ink); background: #fff; border: 1px solid var(--rule); border-radius: 2px; padding: 6px 8px; }
+    input[type=range] { width: 100%; margin: 2px 0; accent-color: var(--ink); }
+    .hint, .note { font-size: 12px; color: var(--dim); margin: 8px 0 0; }
+    .buttons { display: flex; gap: 8px; margin-top: 14px; }
+    button { font: 600 13px 'Public Sans', Arial, sans-serif; border-radius: 2px; padding: 8px 12px; cursor: pointer;
+             border: 1px solid var(--ink); background: var(--ink); color: var(--side); }
+    button.alt { background: none; color: var(--ink); }
+    button:hover { background: #3a3833; color: var(--side); }
+    button:active { transform: translateY(1px); }
+    button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
+    button:disabled { opacity: .5; cursor: wait; }
+    #go { flex: 1; }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    td { padding: 4px 0; border-bottom: 1px solid var(--rule); }
+    td:last-child { text-align: right; font-weight: 600; }
+    #chartBox[hidden] { display: none; }
+    .limits p { margin: 0; font-size: 12px; color: var(--dim); }
+    footer { padding: 7px 20px; font-size: 11px; color: var(--dim); border-top: 1px solid var(--rule); background: var(--side); }
+    footer a { color: var(--dim); }
+    /* Map */
+    .relief { filter: grayscale(1) contrast(.9) brightness(1.12); }
+    .leaflet-container { font: 12px 'Public Sans', Arial, sans-serif; }
+    .leaflet-bar, .leaflet-control-layers { border: 1px solid var(--ink) !important; border-radius: 2px !important; box-shadow: none !important; }
+    .leaflet-bar a { color: var(--ink) !important; border-radius: 0 !important; }
+    .leaflet-popup-content-wrapper, .leaflet-popup-tip { border-radius: 2px; box-shadow: 0 1px 3px rgba(0,0,0,.25); }
+    .leaflet-popup-content small { color: var(--dim); }
+    .legend { background: rgba(250,248,243,.92); padding: 8px 10px; font-size: 11px; line-height: 1.8; border: 1px solid var(--ink); border-radius: 2px; }
+    .sym { display: inline-block; width: 14px; text-align: center; margin-right: 6px; }
+    .mk svg { display: block; }
+    .mk b { position: absolute; left: 15px; top: -1px; font-size: 10px; font-weight: 700; color: var(--ink); white-space: nowrap;
+            text-shadow: 0 0 2px #fff, 0 0 2px #fff, 0 0 3px #fff; }
+    .pin { border-radius: 50%; font: 700 10px/16px 'Public Sans', Arial, sans-serif; text-align: center; border: 1px solid var(--ink); }
+    .pin.a { background: #fff; color: var(--ink); } .pin.b { background: var(--ink); color: #fff; }
+    .hazard svg { display: block; }
+    td svg { vertical-align: -1px; margin-left: 4px; }
+    /* 3D overlay */
+    #view3d { position: fixed; inset: 0; z-index: 2000; background: #2a1a14; }
+    #view3d button { position: absolute; top: 14px; left: 14px; background: var(--side); color: var(--ink); }
+    #view3d p { position: absolute; left: 14px; bottom: 12px; margin: 0; font-size: 11px; color: #fff; text-shadow: 0 1px 2px #000; }
+    @media (max-width: 760px) {
+      html, body { height: auto; } body { display: block; }
+      main { flex-direction: column; } #map { flex: none; height: 55vh; }
+      aside { width: auto; border-left: 0; overflow: visible; }
+      header p { display: none; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Martian Map <span>Safest routes between landing sites</span></h1>
+    <p>Arcadia region of Mars, 37.5°N to 41°N, 171°W to 163°W</p>
+  </header>
+  <main>
+    <div id="map"></div>
+    <aside>
+      <section>
+        <h2>Route</h2>
+        <label for="start">From</label><select id="start"></select>
+        <label for="end">To</label><select id="end"></select>
+        <p class="hint">Or click the map twice: first the start, then the end.</p>
+        <label for="max">Steepest slope allowed <output id="maxv">15°</output></label>
+        <input id="max" type="range" value="15" min="5" max="30" />
+        <div class="buttons"><button id="go">Find safest route</button><button id="v3d" class="alt">3D view</button></div>
+      </section>
+      <section><h2>Summary</h2><div id="summary"><p class="note">No route yet.</p></div></section>
+      <section id="chartBox" hidden><h2>Elevation profile</h2><canvas id="profile" height="160"></canvas></section>
+      <section class="limits"><h2>What this map can't see</h2>
+        <p>Anything smaller than about 460 m (boulders, small craters, cliffs), loose sand or dust that can trap a rover
+          or tire a walker, and weather such as dust storms. Check higher-resolution imagery before travel.</p>
+      </section>
+    </aside>
+  </main>
+  <footer>
+    Elevation from the <a href="https://astrogeology.usgs.gov/search/map/mars_mgs_mola_dem_463m">USGS MOLA DEM 463 m</a>.
+    Map tiles from <a href="https://trek.nasa.gov/mars/">NASA Mars Trek</a> (MOLA relief, and the CTX mosaic by the Caltech Murray Lab).
+    Site positions from <a href="https://www.uahirise.org">HiRISE</a>, University of Arizona.
+    Place names from the <a href="https://planetarynames.wr.usgs.gov/Feature/1821">USGS Gazetteer of Planetary Nomenclature</a>.
+  </footer>
+  <script type="module" src="/src/main.js"></script>
+</body>
+</html>

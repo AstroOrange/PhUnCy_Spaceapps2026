@@ -1,0 +1,12 @@
+[
+  { "name": "SpaceX candidate site 1", "lat": 39.09, "lon": -170.21, "source": "HiRISE image centre, ESP_060416_2195 / ESP_060706_2195 (uahirise.org)" },
+  { "name": "SpaceX candidate site 2", "lat": 38.637, "lon": -169.846, "source": "HiRISE image centre, ESP_061128_2190 / ESP_061194_2190 (uahirise.org)" },
+  { "name": "SpaceX candidate site 3", "lat": 39.824, "lon": -167.942, "source": "HiRISE image centre, ESP_060363_2200 / ESP_060429_2200 (uahirise.org)" },
+  { "name": "SpaceX candidate site 4", "lat": 40.032, "lon": -167.967, "source": "HiRISE image centre, ESP_093858_2205 / ESP_093990_2205 (uahirise.org)" },
+  { "name": "SpaceX candidate site 5", "lat": 39.812, "lon": -164.385, "source": "HiRISE image centre, ESP_060719_2200 / ESP_060785_2200 (uahirise.org)" },
+  { "name": "SpaceX candidate site 6", "lat": 39.174, "lon": -164.396, "source": "HiRISE image centre, ESP_061075_2195 / ESP_061141_2195 (uahirise.org)" },
+  { "name": "SpaceX candidate site 7", "lat": 39.095, "lon": -163.295, "source": "HiRISE image centre, ESP_060376_2195 / ESP_060732_2195 (uahirise.org)" },
+  { "name": "Traverse hazard study near site 3", "lat": 39.835, "lon": -168.055, "poi": true, "source": "HiRISE ESP_094135_2200, 'Assess Traverse Landing Hazards near Candidate SpaceX Starship Landing Site'" },
+  { "name": "Traversability study near site 5", "lat": 39.733, "lon": -164.494, "poi": true, "source": "HiRISE ESP_094214_2200, 'Assess Traversability of SpaceX Starship Candidate Landing Site'" },
+  { "name": "Erebus Montes, centre of the mountain group", "lat": 35.66, "lon": -174.98, "ref": true, "source": "USGS Gazetteer of Planetary Nomenclature, Feature 1821 (planetocentric, 185.02°E)" }
+]
