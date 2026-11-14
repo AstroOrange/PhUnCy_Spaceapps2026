@@ -1,6 +1,7 @@
 import { expect, test } from 'vitest';
 import { haversine, slopeDeg, M_PER_DEG } from '../src/geo.js';
 import { astar } from '../src/astar.js';
+import { loose } from '../src/hazards.js';
 
 test('haversine: 1 degree and a quarter of the equator', () => {
   expect(haversine(0, 0, 0, 1)).toBeCloseTo(M_PER_DEG, 0);
@@ -50,4 +51,12 @@ test('A*: extra cost steers around an expensive cell', () => {
   const g = grid(['.....', '.....', '.....', '.....', '.....']);
   const extra = new Float32Array(25); extra[2 * 5 + 2] = 10;
   expect(astar(g.h, g.s, g.meta, [2, 0], [2, 4], { extra })).not.toContainEqual([2, 2]);
+});
+
+test('loose ground: firm and dust-free is 0, powdery or dusty is 1, no data is 0', () => {
+  expect(loose(300, 0.97)).toBe(0);
+  expect(loose(60, 0.97)).toBe(1);
+  expect(loose(300, 0.92)).toBeCloseTo(1);
+  expect(loose(105, 0.97)).toBeCloseTo(0.5);
+  expect(loose(NaN, NaN)).toBe(0);
 });

@@ -6,6 +6,7 @@ import '@fontsource/archivo/latin-700.css';
 import '@fontsource/archivo-narrow/latin-700.css';
 import Chart from 'chart.js/auto';
 import { haversine, cellLatLon, latLonCell } from './geo.js';
+import { hazardGrids } from './hazards.js';
 
 const $ = id => document.getElementById(id);
 const msg = t => ($('summary').innerHTML = `<p class="note">${t}</p>`);
@@ -33,6 +34,7 @@ const SYM = {
   route: svg('<path d="M0 6h12" stroke="#fff" stroke-width="5"/><path d="M0 6h12" stroke="#f04e23" stroke-width="3"/>'),
   extent: svg('<path d="M0 6h12" stroke="#000" stroke-dasharray="3 2"/>'),
   ice: svg('<rect x="1" y="1" width="10" height="10" fill="#2f6fd6" fill-opacity=".7"/>'),
+  loose: svg('<rect x="1" y="1" width="10" height="10" fill="#b06828" fill-opacity=".65"/>'),
 };
 const icon = (html, className = 'mk', size = 12) => L.divIcon({ html, className, iconSize: [size, size] });
 
@@ -51,7 +53,7 @@ const legend = L.control({ position: 'bottomleft' });
 legend.onAdd = () => Object.assign(L.DomUtil.create('div', 'legend'), { innerHTML: [
   [SYM.site, 'Candidate landing site (S)'], [SYM.poi, 'Point of interest (P)'],
   [SYM.route, 'Safest route'], [SYM.hazard, 'Steepest point on route'], [SYM.extent, 'Elevation data extent'],
-  [SYM.ice, 'Ice likely within 1 m (SWIM)'],
+  [SYM.ice, 'Ice likely within 1 m (SWIM)'], [SYM.loose, 'Loose or dusty ground (TES)'],
 ].map(([s, t]) => `<span class="sym">${s}</span>${t}`).join('<br>') });
 legend.addTo(map);
 
@@ -59,10 +61,11 @@ legend.addTo(map);
 const ICE_MIN = 0.25; // SWIM ice-consistency score treated as "ice likely" (strongest signal in this region)
 const meta = await fetch('data/dem.json').then(r => r.json()).catch(() => null);
 const bin = f => fetch(`data/${f}.bin`).then(r => r.arrayBuffer()).then(b => new Float32Array(b));
-let h, s, worker, layers = {};
+let h, s, worker, layers = {}, hazards = {};
 if (meta) {
   [h, s] = await Promise.all([bin('dem'), bin('slope')]);
   layers = Object.fromEntries(await Promise.all((meta.layers || []).map(async n => [n, await bin(n)])));
+  hazards = hazardGrids(layers);
   worker = new Worker(new URL('./worker.js', import.meta.url), { type: 'module' });
   worker.postMessage({ h, s, meta, layers });
   const [a, b, c, d] = meta.bounds;
@@ -76,8 +79,11 @@ if (meta) {
     layerControl.addOverlay(L.imageOverlay(cv.toDataURL(), [[a, c], [b, d]]), label);
   };
   if (layers.ice) overlay('Ice likely within 1 m (SWIM)', layers.ice, v => (v > 0 ? [47, 111, 214, Math.min(1, v / 0.35) * 190] : [0, 0, 0, 0]));
+  if (hazards.loose) overlay('Loose or dusty ground (TES)', hazards.loose, v => [176, 104, 40, v * 170]);
 } else msg('No elevation data yet: run scripts/prep_dem.py (see README).');
 $('ice').hidden = !layers.ice;
+$('looseRow').hidden = !hazards.loose;
+$('loose').oninput = e => ($('loosev').textContent = `×${e.target.value}`);
 $('max').oninput = e => ($('maxv').textContent = `${e.target.value}°`);
 
 // Start (A) / end (B)
@@ -100,7 +106,7 @@ function run(toIce) {
   msg(toIce ? 'Searching for the nearest likely ice.' : 'Working out the safest route.');
   $('go').disabled = $('ice').disabled = true;
   worker.onmessage = e => show(e.data, toIce);
-  worker.postMessage({ start: cells[0], end: toIce ? null : cells[1], iceMin: toIce ? ICE_MIN : null, opts: { maxSlope: +$('max').value } });
+  worker.postMessage({ start: cells[0], end: toIce ? null : cells[1], iceMin: toIce ? ICE_MIN : null, opts: { maxSlope: +$('max').value }, weights: { loose: +$('loose').value } });
 }
 $('go').onclick = () => run(false);
 $('ice').onclick = () => run(true);
@@ -115,7 +121,7 @@ function show(path, toIce) {
     : `No route stays under ${$('max').value}°. Allow a steeper slope or pick other points.`);
   const ll = path.map(([r, c]) => cellLatLon(meta, r, c)), idx = path.map(([r, c]) => r * meta.cols + c);
   if (toIce) { $('end').value = ''; setPt(1, ll.at(-1)); }
-  let dist = 0, gain = 0, loss = 0, unknown = 0, maxS = -1, maxJ = 0;
+  let dist = 0, gain = 0, loss = 0, unknown = 0, looseN = 0, maxS = -1, maxJ = 0;
   const prof = idx.map((i, j) => {
     if (j) {
       dist += haversine(...ll[j - 1], ...ll[j]);
@@ -123,6 +129,7 @@ function show(path, toIce) {
       if (dz > 0) gain += dz; else if (dz < 0) loss -= dz;
     }
     if (Number.isNaN(h[i])) unknown++;
+    if (hazards.loose?.[i] > 0.5) looseN++;
     if (s[i] > maxS) { maxS = s[i]; maxJ = j; }
     return { x: dist / 1000, y: h[i] };
   });
@@ -136,7 +143,8 @@ function show(path, toIce) {
     <p class="kicker">Estimated</p><div class="stats">
     ${stat(`${Math.round(km / 3)}-${Math.round(km / 1.5)}`, 'h', 'Walking time at 1.5 to 3 km/h')}
     ${stat(Math.round(100 * unknown / idx.length), '%', 'Route over missing data')}
-    ${layers.ice ? stat(layers.ice[idx.at(-1)].toFixed(2), '', 'Ice score at B (SWIM, -1 to +1)') : ''}</div>
+    ${hazards.loose ? stat(Math.round(100 * looseN / idx.length), '%', 'Route over loose or dusty ground') : ''}
+    ${toIce && layers.ice ? stat(layers.ice[idx.at(-1)].toFixed(2), '', 'Ice score at B (SWIM, -1 to +1)') : ''}</div>
     ${toIce ? `<p class="note">B is the nearest place where the SWIM ice score is ${ICE_MIN} or higher: the orbiter data there is consistent with ice within 1 m of the surface.</p>` : ''}
     <p class="note">Every step stays under ${$('max').value}° at 463 m resolution. Smaller hazards are not visible.</p>`;
   chart = new Chart($('profile'), {
