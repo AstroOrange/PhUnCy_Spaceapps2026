@@ -36,12 +36,24 @@
     button:disabled { opacity: .5; cursor: wait; }
     #go { flex: 1; }
     #ice { width: 100%; margin-top: 8px; }
-    #nav { position: absolute; top: 12px; left: 60px; z-index: 1000; width: min(440px, calc(100% - 420px)); background: var(--ink); color: var(--paper); padding: 10px 14px; }
-    #nav .next b { font: 700 40px/1 var(--narrow); } #nav .next small { font-size: 16px; margin-left: 3px; }
-    #nav .next span { display: block; font-size: 14px; margin-top: 2px; }
-    #nav .row { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 12px; margin-top: 6px; }
-    #nav .warn { margin-top: 6px; padding: 4px 8px; background: var(--orange); font-size: 13px; font-weight: 700; }
-    .me { background: var(--orange); border: 3px solid var(--paper); border-radius: 50%; box-shadow: 0 0 0 2px var(--ink); }
+    #search { width: 100%; font: inherit; border: 2px solid var(--ink); padding: 9px 10px; }
+    .ft { display: grid; grid-template-columns: 1fr auto; gap: 6px 8px; align-items: end; }
+    .ft label, .ft select { grid-column: 1; margin: 0; } .ft label { margin-top: 6px; }
+    #swap { grid-column: 2; grid-row: 1 / span 4; align-self: center; margin: 0; padding: 8px 10px; }
+    .check { display: flex; gap: 8px; align-items: center; justify-content: flex-start; font-size: 13px; color: var(--ink); margin: 6px 0; }
+    #routes { display: grid; gap: 6px; margin-top: 10px; }
+    .card { display: block; width: 100%; margin: 0; text-align: left; background: var(--paper); color: var(--ink); border: 1px solid var(--ink); padding: 8px 10px; font-weight: 400; }
+    .card.on { border: 3px solid var(--orange); padding: 6px 8px; }
+    .card .t { display: flex; justify-content: space-between; font-size: 15px; } .card small { display: block; margin-top: 2px; }
+    .card:hover { background: var(--paper); color: var(--ink); border-color: var(--orange); }
+    #dirs { margin: 0; padding-left: 20px; font-size: 13px; }
+    #dirs li { padding: 6px 0; border-bottom: 1px solid var(--ink); cursor: pointer; }
+    #dirs li span { display: block; font-size: 12px; } #dirs li .warn { font-weight: 700; color: var(--orange); }
+    #dirs li.ends { cursor: default; font-weight: 700; } #dirBox[hidden] { display: none; }
+    .scalebar { background: rgba(255,255,255,.85); padding: 2px 6px; font-size: 11px; border: 1px solid var(--ink); }
+    .scalebar i { display: block; height: 5px; border: 2px solid var(--ink); border-top: 0; margin-bottom: 1px; }
+    table.here { border-collapse: collapse; margin: 6px 0; font-size: 12px; } table.here td { padding: 1px 10px 1px 0; }
+    .here-btns { display: flex; gap: 6px; } .here-btns button { margin: 0; padding: 5px 8px; font-size: 12px; }
     #addStop.on { background: var(--orange); border-color: var(--orange); color: var(--paper); }
     .pin.stop { background: var(--orange); color: var(--paper); border-color: var(--ink); }
     .sources table { width: 100%; border-collapse: collapse; font-size: 12px; }
@@ -72,22 +84,11 @@
             text-shadow: 0 0 2px #fff, 0 0 2px #fff, 0 0 3px #fff; }
     .pin { border-radius: 50%; font: 700 10px/16px Archivo, Arial, sans-serif; text-align: center; border: 1px solid var(--ink); }
     .pin.a { background: var(--paper); color: var(--ink); } .pin.b { background: var(--ink); color: var(--paper); }
-    /* 3D overlay */
-    #view3d { position: fixed; inset: 0; z-index: 2000; background: #d0bdae; }
-    #view3d .bar3d { position: absolute; top: 14px; left: 14px; display: flex; gap: 8px; }
-    #view3d .hud3d { position: absolute; top: 14px; right: 14px; width: min(420px, calc(100% - 28px)); background: var(--ink); color: var(--paper); padding: 10px 14px; }
-    #view3d .hud3d .next b { font: 700 40px/1 var(--narrow); } #view3d .hud3d .next small { font-size: 16px; margin-left: 3px; }
-    #view3d .hud3d .next span { display: block; font-size: 14px; margin-top: 2px; }
-    #view3d .hud3d .row { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 12px; margin-top: 6px; }
-    #view3d .hud3d .warn { margin-top: 6px; padding: 4px 8px; background: var(--orange); font-size: 13px; font-weight: 700; }
-    @media (max-width: 760px) { #view3d .hud3d { top: 60px; left: 14px; right: 14px; width: auto; } }
-    #view3d p { position: absolute; left: 14px; bottom: 12px; margin: 0; font-size: 12px; color: #fff; text-shadow: 0 1px 2px #000; }
     @media (max-width: 760px) {
       html, body { height: auto; } body { display: block; }
       main { flex-direction: column; } #map { flex: none; height: 55vh; }
       aside { width: auto; border-left: 0; overflow: visible; }
       header p { display: none; }
-      #nav { left: 12px; right: 12px; width: auto; top: 70px; }
     }
   </style>
 </head>
@@ -108,26 +109,27 @@
   </header>
   <main>
     <div id="map"></div>
-    <div id="nav" hidden></div>
     <aside>
       <section>
-        <h2>Route</h2>
-        <label for="start">From</label><select id="start"></select>
-        <label for="end">To</label><select id="end"></select>
+        <h2>Directions</h2>
+        <input id="search" list="placeList" placeholder="Search a site (S4, AP-1, ice) or lat, lon" aria-label="Search" />
+        <datalist id="placeList"></datalist><p class="hint" id="searchHint">Right-click anywhere on the map for "What's here?".</p>
+        <div class="ft">
+          <label for="start">From</label><select id="start"></select>
+          <label for="end">To</label><select id="end"></select>
+          <button id="swap" class="alt" title="Swap start and end">Swap</button>
+        </div>
         <p class="hint">Or click the map twice: first the start, then the end.</p>
         <div class="buttons"><button id="addStop" class="alt">Add science stops</button><button id="clearStops" class="alt" hidden>Clear stops</button></div>
-        <label for="mode">Travel</label><select id="mode"><option value="walk">On foot, 2 astronauts</option><option value="rover">Unpressurised rover, 2 astronauts</option></select>
-        <label for="eva">EVA length</label><select id="eva"><option value="4">4 hours</option><option value="6">6 hours</option><option value="8" selected>8 hours</option></select>
+        <label class="check" id="avoidLooseRow"><input type="checkbox" id="avoidLoose" checked /> Avoid loose or dusty ground</label>
+        <label class="check" id="avoidCraterRow"><input type="checkbox" id="avoidCrater" checked /> Avoid crater rims</label>
         <label for="max">Steepest slope allowed <output id="maxv">15°</output></label>
         <input id="max" type="range" value="15" min="5" max="30" />
-        <div id="seasonRow"><label for="season">Season</label><select id="season"></select></div>
-        <div id="looseRow"><label for="loose">Loose ground penalty <output id="loosev">×1</output></label>
-        <input id="loose" type="range" value="1" min="0" max="3" step="0.5" /></div>
-        <div id="craterRow"><label for="crater">Crater rim penalty <output id="craterv">×1</output></label>
-        <input id="crater" type="range" value="1" min="0" max="3" step="0.5" /></div>
-        <div class="buttons"><button id="go">Find safest route</button><button id="navGo" class="alt" hidden>Go</button><button id="v3d" class="alt">3D view</button></div>
+        <button id="go" style="width:100%;margin-top:14px">Get routes</button>
         <button id="ice" class="alt">Route from A to the nearest likely ice</button>
+        <div id="routes"></div>
       </section>
+      <section id="dirBox" hidden><h2>Step by step</h2><ol id="dirs"></ol></section>
       <section><h2>Summary</h2><div id="summary"><p class="note">No route yet.</p></div></section>
       <section id="chartBox" hidden><h2>Elevation profile</h2><canvas id="profile" height="160"></canvas></section>
       <section class="sources"><h2>Data in this map</h2>
@@ -137,8 +139,6 @@
           <tr><td>Thermal</td><td>TES thermal inertia (Mars Global Surveyor)</td></tr>
           <tr><td>Spectral</td><td>TES Dust Cover Index (Mars Global Surveyor)</td></tr>
           <tr><td>Geophysical</td><td>SWIM ice: radar, neutron, thermal, landforms (several orbiters)</td></tr>
-          <tr><td>Atmospheric</td><td>Mars Climate Database: dust, temperature, wind</td></tr>
-          <tr><td>Radiation</td><td>Curiosity RAD surface dose rate</td></tr>
           <tr><td>Geologic</td><td>Robbins and Hynek crater catalog</td></tr>
         </table>
         <p class="note">No lander or rover has visited Arcadia or Amazonis, so there are no ground-level photos yet. Site popups link to HiRISE close-ups from orbit.</p>
