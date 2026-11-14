@@ -5,7 +5,7 @@ steering around hazards (steep slopes, unknown terrain), and shows it on a 2D ma
 Demo region: SpaceX's Starship candidate sites in the Arcadia region (37.5°N to 41°N, 171°W to 163°W).
 
 ## What it does
-- Map of Mars (NASA Mars Trek MOLA relief / CTX imagery) with candidate sites (black squares) and points of interest (blue diamonds).
+- Map of Mars (NASA Mars Trek MOLA relief / CTX imagery) with candidate sites (black squares) and points of interest (open diamonds).
 - Pick start and end (dropdowns or map clicks) and get one route, found by A* in a Web Worker:
   8-neighbour grid, step cost = distance × (1 + 0.1 × slope°), slopes over the limit (default 15°) are blocked,
   cells with no data are high-cost "unknown", never treated as flat.

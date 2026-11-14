@@ -6,7 +6,7 @@ export default {
     registerType: 'autoUpdate',
     manifest: {
       name: 'Martian Map', short_name: 'Martian Map',
-      theme_color: '#faf8f3', background_color: '#f3f0e8', display: 'standalone',
+      theme_color: '#ffffff', background_color: '#ffffff', display: 'standalone',
       icons: [{ src: 'icon.svg', sizes: 'any', type: 'image/svg+xml', purpose: 'any' }],
     },
     workbox: {

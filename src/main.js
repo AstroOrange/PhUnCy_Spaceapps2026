@@ -1,17 +1,18 @@
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
-import '@fontsource/public-sans/latin-400.css';
-import '@fontsource/public-sans/latin-600.css';
-import '@fontsource/public-sans/latin-700.css';
+import '@fontsource/archivo/latin-400.css';
+import '@fontsource/archivo/latin-500.css';
+import '@fontsource/archivo/latin-700.css';
+import '@fontsource/archivo-narrow/latin-700.css';
 import Chart from 'chart.js/auto';
 import { haversine, cellLatLon, latLonCell } from './geo.js';
 
 const $ = id => document.getElementById(id);
 const msg = t => ($('summary').innerHTML = `<p class="note">${t}</p>`);
-Object.assign(Chart.defaults, { color: '#6b665d', borderColor: '#e2ddd2' });
-Object.assign(Chart.defaults.font, { family: "'Public Sans', Arial, sans-serif", size: 10 });
-Object.assign(Chart.defaults.plugins.tooltip, { backgroundColor: '#fff', titleColor: '#1d1c1a', bodyColor: '#1d1c1a',
-  borderColor: '#1d1c1a', borderWidth: 1, cornerRadius: 0, displayColors: false, padding: 6 });
+Object.assign(Chart.defaults, { color: '#000', borderColor: '#000' });
+Object.assign(Chart.defaults.font, { family: 'Archivo, Arial, sans-serif', size: 10 });
+Object.assign(Chart.defaults.plugins.tooltip, { backgroundColor: '#fff', titleColor: '#000', bodyColor: '#000',
+  borderColor: '#000', borderWidth: 1, cornerRadius: 0, displayColors: false, padding: 6 });
 
 // Formats/URLs checked against each layer's WMTSCapabilities.xml:
 // MOLA = 256px .jpg on trek.nasa.gov; CTX = 512px .png redirected to astro.arcgis.com (2x1 tiles at level 0).
@@ -25,12 +26,12 @@ const ctx = L.tileLayer(
 // Map symbols (cartographic, not glowing dots)
 const svg = body => `<svg width="12" height="12" viewBox="0 0 12 12">${body}</svg>`;
 const SYM = {
-  site: svg('<rect x="2" y="2" width="8" height="8" fill="#1d1c1a" stroke="#fff" stroke-width="1"/>'),
-  poi: svg('<path d="M6 1 11 6 6 11 1 6Z" fill="#1f5fa8" stroke="#fff" stroke-width="1"/>'),
-  ref: svg('<path d="M6 1v10M1 6h10" stroke="#1d1c1a" stroke-width="1.5"/>'),
-  hazard: svg('<path d="M6 1.5 11 10.5H1Z" fill="#1d1c1a" stroke="#fff" stroke-width="1"/>'),
-  route: svg('<path d="M0 6h12" stroke="#fff" stroke-width="5"/><path d="M0 6h12" stroke="#c62828" stroke-width="2.5"/>'),
-  extent: svg('<path d="M0 6h12" stroke="#1d1c1a" stroke-dasharray="3 2"/>'),
+  site: svg('<rect x="2" y="2" width="8" height="8" fill="#000" stroke="#fff" stroke-width="1"/>'),
+  poi: svg('<path d="M6 1.5 10.5 6 6 10.5 1.5 6Z" fill="#fff" stroke="#000" stroke-width="1.5"/>'),
+  ref: svg('<path d="M6 1v10M1 6h10" stroke="#000" stroke-width="1.5"/>'),
+  hazard: svg('<path d="M6 1.5 11 10.5H1Z" fill="#000" stroke="#fff" stroke-width="1"/>'),
+  route: svg('<path d="M0 6h12" stroke="#fff" stroke-width="5"/><path d="M0 6h12" stroke="#f04e23" stroke-width="3"/>'),
+  extent: svg('<path d="M0 6h12" stroke="#000" stroke-dasharray="3 2"/>'),
 };
 const icon = (html, className = 'mk', size = 12) => L.divIcon({ html, className, iconSize: [size, size] });
 
@@ -60,7 +61,7 @@ if (meta) {
   worker = new Worker(new URL('./worker.js', import.meta.url), { type: 'module' });
   worker.postMessage({ h, s, meta });
   const [a, b, c, d] = meta.bounds;
-  map.fitBounds(L.rectangle([[a, c], [b, d]], { color: '#1d1c1a', weight: 1, opacity: 0.7, dashArray: '4 4', fill: false, interactive: false }).addTo(map).getBounds());
+  map.fitBounds(L.rectangle([[a, c], [b, d]], { color: '#000', weight: 1, opacity: 0.8, dashArray: '4 4', fill: false, interactive: false }).addTo(map).getBounds());
 } else msg('No elevation data yet: run scripts/prep_dem.py (see README).');
 $('max').oninput = e => ($('maxv').textContent = `${e.target.value}°`);
 
@@ -106,20 +107,20 @@ function show(path) {
     if (s[i] > maxS) { maxS = s[i]; maxJ = j; }
     return { x: dist / 1000, y: h[i] };
   });
-  line = L.layerGroup([L.polyline(ll, { color: '#fff', weight: 6 }), L.polyline(ll, { color: '#c62828', weight: 3 })]).addTo(map);
+  line = L.layerGroup([L.polyline(ll, { color: '#fff', weight: 7 }), L.polyline(ll, { color: '#f04e23', weight: 3.5 })]).addTo(map);
   steep = L.marker(ll[maxJ], { icon: icon(SYM.hazard, 'hazard') }).bindPopup(`Steepest point on the route: ${maxS.toFixed(0)}°`).addTo(map);
   const km = dist / 1000, r10 = v => Math.round(v / 10) * 10;
-  const rows = r => `<table>${r.map(([a, b]) => `<tr><td>${a}</td><td>${b}</td></tr>`).join('')}</table>`;
-  $('summary').innerHTML = `<h3>Measured, from MOLA elevation</h3>${rows([
-    ['Distance', `${km.toFixed(0)} km`], ['Climb / descent', `${r10(gain)} / ${r10(loss)} m`],
-    [`Steepest slope ${SYM.hazard}`, `${maxS.toFixed(0)}°`]])}
-    <h3>Estimated</h3>${rows([
-    ['Walking time at 1.5 to 3 km/h', `${Math.round(km / 3)} to ${Math.round(km / 1.5)} h`],
-    ['Route over missing data', `${Math.round(100 * unknown / idx.length)} %`]])}
+  const stat = (v, u, t, wide) => `<div class="stat${wide ? ' wide' : ''}"><b>${v}<small>${u}</small></b><span>${t}</span></div>`;
+  $('summary').innerHTML = `<p class="kicker">Measured from MOLA elevation</p><div class="stats">
+    ${stat(km.toFixed(0), 'km', 'Distance', true)}${stat(`${r10(gain)}/${r10(loss)}`, 'm', 'Climb / descent')}
+    ${stat(maxS.toFixed(0), '°', `Steepest slope ${SYM.hazard}`)}</div>
+    <p class="kicker">Estimated</p><div class="stats">
+    ${stat(`${Math.round(km / 3)}-${Math.round(km / 1.5)}`, 'h', 'Walking time at 1.5 to 3 km/h')}
+    ${stat(Math.round(100 * unknown / idx.length), '%', 'Route over missing data')}</div>
     <p class="note">Every step stays under ${$('max').value}° at 463 m resolution. Smaller hazards are not visible.</p>`;
   chart = new Chart($('profile'), {
     type: 'line',
-    data: { datasets: [{ data: prof, pointRadius: 0, borderWidth: 1.5, borderColor: '#c62828' }] },
+    data: { datasets: [{ data: prof, pointRadius: 0, borderWidth: 2, borderColor: '#f04e23' }] },
     options: { animation: false, interaction: { mode: 'index', intersect: false },
       plugins: { legend: { display: false }, tooltip: { callbacks: { title: i => `${i[0].parsed.x.toFixed(0)} km`, label: i => `${i.parsed.y.toFixed(0)} m` } } },
       scales: { x: { type: 'linear', max: Math.ceil(km), grid: { display: false }, ticks: { includeBounds: false, callback: v => `${v} km` } },

@@ -92,8 +92,8 @@ export function open3D(h, meta, path) {
     const radius = size / 400;
     const pts = flat.getSpacedPoints(Math.min(2000, path.length * 3)).map(p => ground(p.z, p.x).add(new THREE.Vector3(0, radius + 0.005 * EXAG, 0)));
     const mat = c => new THREE.MeshStandardMaterial({ color: c, emissive: c, emissiveIntensity: 0.35, roughness: 0.6 });
-    scene.add(new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), pts.length, radius, 8), mat('#d32f2f')));
-    for (const [p, c] of [[pts[0], '#ffffff'], [pts.at(-1), '#1d1c1a']]) { // survey stakes: A (start), B (end)
+    scene.add(new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), pts.length, radius, 8), mat('#f04e23')));
+    for (const [p, c] of [[pts[0], '#ffffff'], [pts.at(-1), '#000000']]) { // survey stakes: A (start), B (end)
       const tall = size / 30, stake = new THREE.Mesh(new THREE.CylinderGeometry(radius * 0.5, radius * 0.5, tall), mat(c));
       const cap = new THREE.Mesh(new THREE.SphereGeometry(radius * 2), mat(c));
       stake.position.copy(p).y += tall / 2;
