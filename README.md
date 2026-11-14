@@ -1,4 +1,4 @@
-# Martian Map: hazard-aware routes on Mars (NASA Space Apps 2026)
+# Arcadia Pathfinder: safe Marswalks on Mars (NASA Space Apps 2026)
 
 A static web app that plans safe Marswalks: it finds the ONE safest route between landing sites and science stops,
 steering around hazards, and shows it on a 2D map and in 3D.

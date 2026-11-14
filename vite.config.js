@@ -5,7 +5,7 @@ export default {
   plugins: [VitePWA({
     registerType: 'autoUpdate',
     manifest: {
-      name: 'Martian Map', short_name: 'Martian Map',
+      name: 'Arcadia Pathfinder', short_name: 'Pathfinder',
       theme_color: '#ffffff', background_color: '#ffffff', display: 'standalone',
       icons: [{ src: 'icon.svg', sizes: 'any', type: 'image/svg+xml', purpose: 'any' }],
     },
