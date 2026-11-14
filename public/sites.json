@@ -1,11 +1,17 @@
 [
-  { "name": "ExoMars candidate landing area 1", "lat": 18.641, "lon": -25.122, "source": "HiRISE image centre, ESP_043690_1990 (21 Nov 2015), 'Candidate ExoMars Landing Site in Oxia Palus Region' (uahirise.org)" },
-  { "name": "ExoMars candidate landing area 2", "lat": 18.464, "lon": -24.823, "source": "HiRISE image centre, ESP_044178_1985 (29 Dec 2015), 'Candidate ExoMars Landing Site in Oxia Palus Region' (uahirise.org)" },
-  { "name": "ExoMars candidate landing area 3", "lat": 18.199, "lon": -24.797, "source": "HiRISE image centre, ESP_041066_1985 (1 May 2015), 'Candidate ExoMars Landing Site in Oxia Palus Region' (uahirise.org)" },
-  { "name": "ExoMars candidate landing area 4", "lat": 18.134, "lon": -24.242, "source": "HiRISE image centre, ESP_040433_1985 (13 Mar 2015), 'Candidate ExoMars Landing Site in Oxia Palus' (uahirise.org)" },
-  { "name": "ExoMars candidate landing area 5", "lat": 18.009, "lon": -24.023, "source": "HiRISE image centre, ESP_044257_1980 (5 Jan 2016), 'Candidate ExoMars Landing Site in Oxia Palus Region' (uahirise.org)" },
-  { "name": "ExoMars candidate landing area 6", "lat": 17.905, "lon": -24.510, "source": "HiRISE image centre, ESP_044956_1980 (28 Feb 2016), 'Candidate ExoMars Landing Site in Oxia Palus Region' (uahirise.org)" },
-  { "name": "ExoMars candidate landing area 7", "lat": 17.666, "lon": -23.589, "source": "HiRISE image centre, ESP_043558_1980 (11 Nov 2015), 'Candidate ExoMars Landing Site in Oxia Palus' (uahirise.org)" },
-  { "name": "Clay-rich terrain (science stop)", "lat": 18.275, "lon": -24.632, "poi": true, "source": "HiRISE ESP_039154_1985 (3 Dec 2014), 'Clay-Rich Terrain in Oxia Planum: A Proposed ExoMars Landing Site' (uahirise.org)" },
-  { "name": "Oxia Planum, centre of the plain", "lat": 17.28, "lon": -25.71, "ref": true, "source": "USGS Gazetteer of Planetary Nomenclature (planetocentric, 334.29°E)" }
+  { "name": "SpaceX candidate site 1", "lat": 39.09, "lon": -170.21, "source": "HiRISE image centre, ESP_060416_2195 / ESP_060706_2195 (uahirise.org)" },
+  { "name": "SpaceX candidate site 2", "lat": 38.637, "lon": -169.846, "source": "HiRISE image centre, ESP_061128_2190 / ESP_061194_2190 (uahirise.org)" },
+  { "name": "SpaceX candidate site 3", "lat": 39.824, "lon": -167.942, "source": "HiRISE image centre, ESP_060363_2200 / ESP_060429_2200 (uahirise.org)" },
+  { "name": "SpaceX candidate site 4", "lat": 40.032, "lon": -167.967, "source": "HiRISE image centre, ESP_093858_2205 / ESP_093990_2205 (uahirise.org)" },
+  { "name": "SpaceX candidate site 5", "lat": 39.812, "lon": -164.385, "source": "HiRISE image centre, ESP_060719_2200 / ESP_060785_2200 (uahirise.org)" },
+  { "name": "SpaceX candidate site 6", "lat": 39.174, "lon": -164.396, "source": "HiRISE image centre, ESP_061075_2195 / ESP_061141_2195 (uahirise.org)" },
+  { "name": "SpaceX candidate site 7", "lat": 39.095, "lon": -163.295, "source": "HiRISE image centre, ESP_060376_2195 / ESP_060732_2195 (uahirise.org)" },
+  { "name": "SpaceX candidate site 8 (Amazonis Planitia)", "lat": 39.309, "lon": -160.669, "source": "HiRISE image centre, ESP_061576_2195 / ESP_061919_2195 (uahirise.org)" },
+  { "name": "SpaceX candidate site 9 (same spot as AP-9)", "lat": 40.024, "lon": -156.669, "source": "HiRISE image centre, ESP_060811_2205 / ESP_060323_2205 (uahirise.org)" },
+  { "code": "AP-1", "name": "NASA Ames candidate site, rated safest", "lat": 39.8, "lon": -157.9, "source": "Luzzi et al. 2025, JGR Planets, doi 10.1029/2024JE008724: near-surface ice tens of cm deep (202.1°E as reported; check against the paper's map)" },
+  { "code": "AP-8", "name": "NASA Ames candidate site", "lat": 40.75, "lon": -158.7, "source": "Luzzi et al. 2025, JGR Planets, doi 10.1029/2024JE008724 (201.3°E as reported; check against the paper's map)" },
+  { "code": "AP-9", "name": "NASA Ames candidate site", "lat": 40.02, "lon": -156.65, "source": "Luzzi et al. 2025, JGR Planets, doi 10.1029/2024JE008724 (203.35°E as reported; check against the paper's map)" },
+  { "name": "Traverse hazard study near site 3", "lat": 39.835, "lon": -168.055, "poi": true, "source": "HiRISE ESP_094135_2200, 'Assess Traverse Landing Hazards near Candidate SpaceX Starship Landing Site'" },
+  { "name": "Traversability study near site 5", "lat": 39.733, "lon": -164.494, "poi": true, "source": "HiRISE ESP_094214_2200, 'Assess Traversability of SpaceX Starship Candidate Landing Site'" },
+  { "name": "Erebus Montes, centre of the mountain group", "lat": 35.66, "lon": -174.98, "ref": true, "source": "USGS Gazetteer of Planetary Nomenclature, Feature 1821 (planetocentric, 185.02°E)" }
 ]

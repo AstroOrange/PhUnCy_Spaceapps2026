@@ -15,7 +15,7 @@ export function bilinear(h, { rows, cols }, r, c) {
 // Real CTX imagery for the box, stitched from Mars Trek tiles and tinted Mars-red. Also returns its average colour.
 // Level 8 is skipped: around Erebus Montes the server returns one repeated placeholder tile there.
 async function imagery({ bounds: [latMin, latMax, lonMin, lonMax] }) {
-  let L = Math.min(11, Math.max(0, Math.round(Math.log2(4096 * 360 / ((lonMax - lonMin) * 1024)))));
+  let L = Math.min(11, Math.max(0, Math.floor(Math.log2(4096 * 360 / ((lonMax - lonMin) * 1024))))); // floor: texture stays within 4096 px
   if (L === 8) L = 7;
   const deg = 180 / 2 ** L, px = 512 / deg;
   const x0 = Math.floor((lonMin + 180) / deg), x1 = Math.floor((lonMax + 180) / deg), y0 = Math.floor((90 - latMax) / deg), y1 = Math.floor((90 - latMin) / deg);

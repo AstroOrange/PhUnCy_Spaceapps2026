@@ -42,9 +42,9 @@ const icon = (html, className = 'mk', size = 12) => L.divIcon({ html, className,
 const sites = await (await fetch('sites.json')).json();
 const named = sites.filter(s => s.lat != null && s.lon != null);
 let n = 0, p = 0;
-for (const s of named) s.code = s.ref ? '' : s.poi ? `P${++p}` : `S${++n}`;
+for (const s of named) s.code ??= s.ref ? '' : s.poi ? `P${++p}` : `S${++n}`; // sites may bring their own code (AP-1)
 
-const map = L.map('map', { crs: L.CRS.EPSG4326, layers: [mola] }).setView([18.25, -24.5], 7);
+const map = L.map('map', { crs: L.CRS.EPSG4326, layers: [mola] }).setView([39.25, -163.5], 6);
 map.attributionControl.setPrefix('<a href="https://leafletjs.com">Leaflet</a>');
 const layerControl = L.control.layers({ 'Relief (MOLA)': mola, 'Imagery (CTX)': ctx }).addTo(map);
 for (const s of named)
