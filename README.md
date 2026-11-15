@@ -98,5 +98,5 @@ Longitudes are -180..180 east. Distances use Mars radius 3389.5 km.
 - The CTX mosaic has gaps and brightness seams, and its server sometimes repeats one tile or sends grey filler; the 3D view
   drops those and shows coarser imagery of the right place, with the count on screen. The 2D CTX layer comes straight from the server.
 
-## AI assistance
-AI assistance (Claude Code) was used to write this code.
+## Coding assistant
+Claude Code, a coding assistant by Anthropic, helped write this code.
