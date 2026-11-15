@@ -4,43 +4,88 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta name="theme-color" content="#ffffff" />
+  <link rel="preconnect" href="https://trek.nasa.gov" crossorigin />
   <link rel="icon" href="icon.svg" />
   <title>Arcadia Pathfinder</title>
   <style>
-    :root { --ink: #000; --paper: #fff; --orange: #f04e23; --narrow: 'Archivo Narrow', 'Arial Narrow', sans-serif; }
+    :root { --ink: #000; --paper: #fff; --orange: #f04e23; --grey: #6b6b6b; --narrow: 'Archivo Narrow', 'Arial Narrow', sans-serif; }
     * { box-sizing: border-box; }
-    html, body { margin: 0; height: 100%; background: var(--paper); color: var(--ink);
+    [hidden] { display: none !important; }
+    html, body { margin: 0; height: 100%; overflow: hidden; background: var(--paper); color: var(--ink);
                  font: 14px/1.4 Archivo, Arial, sans-serif; font-variant-numeric: tabular-nums; }
-    body { display: flex; flex-direction: column; }
     a { color: var(--ink); text-underline-offset: 2px; }
-    header { display: flex; justify-content: space-between; align-items: flex-end; gap: 16px; padding: 14px 20px 10px; border-bottom: 4px solid var(--ink); }
-    header h1 { margin: 0; font: 700 30px/0.95 var(--narrow); letter-spacing: -0.5px; }
-    header p { margin: 0; font-size: 12px; text-align: right; }
-    main { flex: 1; display: flex; min-height: 0; position: relative; }
-    #map { flex: 1; background: var(--paper); }
-    aside { width: 340px; overflow: auto; border-left: 1px solid var(--ink); }
-    aside section { padding: 16px 20px 4px; }
-    h2 { margin: 0 0 8px; font: 700 20px var(--narrow); }
-    label { display: flex; justify-content: space-between; font-size: 12px; font-weight: 500; margin: 10px 0 4px; }
-    output { font: inherit; }
-    select { width: 100%; font: inherit; color: var(--ink); background: var(--paper); border: 1px solid var(--ink); border-radius: 0; padding: 7px 8px; }
-    input[type=range] { width: 100%; margin: 2px 0; accent-color: var(--ink); }
-    .hint, .note { font-size: 12px; margin: 8px 0 0; }
-    .buttons { display: flex; gap: 8px; margin-top: 14px; }
+    #map { position: fixed; inset: 64px 0 0; background: #584649; }
+    .hud { position: fixed; z-index: 1000; }
+
+    /* Header */
+    #top { top: 0; left: 0; right: 0; height: 64px; display: flex; align-items: center; gap: 18px; padding: 0 20px;
+           background: var(--paper); border-bottom: 4px solid var(--ink); }
+    .logo { font: 700 24px/0.95 var(--narrow); letter-spacing: -0.5px; }
+    #crumb { font-size: 13px; } #crumb b { font-weight: 700; }
+    #cbar { margin-left: auto; width: min(360px, 30vw); font-size: 10px; }
+    .cbar-head { display: flex; justify-content: space-between; font-weight: 700; margin-bottom: 2px; }
+    #cbarBar { position: relative; height: 10px; border: 1px solid var(--ink); }
+    #cbarMark { position: absolute; top: -5px; width: 0; height: 0; transform: translateX(-5px);
+                border: 5px solid transparent; border-top: 6px solid var(--ink); border-bottom: 0; }
+    #cbarTicks { position: relative; height: 13px; margin-top: 1px; }
+    #cbarTicks span { position: absolute; transform: translateX(-50%); }
+    #readout { margin-left: auto; font: 12px ui-monospace, Consolas, monospace; text-align: right; white-space: pre; }
+    #readout b { font-weight: 700; }
+    #back { padding: 7px 12px; font-size: 12px; }
+    #hint { bottom: 26px; left: 50%; transform: translateX(-50%); padding: 6px 12px; background: var(--paper); border: 2px solid var(--ink);
+            font-size: 13px; font-weight: 700; pointer-events: none; white-space: nowrap; }
+
+    /* Panels */
+    .panel { background: var(--paper); border: 2px solid var(--ink); }
+    .tag { font-size: 12px; font-weight: 700; }
+    h2 { margin: 2px 0 8px; font: 700 26px/1 var(--narrow); letter-spacing: -0.5px; }
+    h3 { margin: 18px 0 8px; padding-top: 8px; border-top: 4px solid var(--ink); font: 700 18px var(--narrow); }
+    h3 i { font-style: normal; color: var(--orange); margin-right: 6px; }
+
+    /* World: sector card */
+    #card { right: 24px; top: 50%; transform: translateY(-50%); width: 340px; padding: 20px 22px; }
+    #card p { font-size: 13px; margin: 8px 0; }
+    #card .status { display: inline-block; font-size: 12px; font-weight: 700; padding: 2px 8px; border: 2px solid currentColor; }
+    #card .status.open { color: var(--orange); } #card .status.locked { color: var(--grey); }
+    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px 16px; margin: 14px 0; }
+    .grid div b { display: block; font: 700 28px/1 var(--narrow); }
+    .grid div b small { font-size: 14px; margin-left: 2px; }
+    .grid div span { font-size: 12px; }
+
+    /* Buttons and inputs */
     button { font: 700 14px Archivo, Arial, sans-serif; border-radius: 0; padding: 10px 14px; cursor: pointer;
              border: 2px solid var(--ink); background: var(--ink); color: var(--paper); }
     button.alt { background: var(--paper); color: var(--ink); }
     button:hover { background: var(--orange); border-color: var(--orange); color: var(--paper); }
     button:active { transform: translateY(1px); }
-    button:focus-visible, select:focus-visible, input:focus-visible { outline: 3px solid var(--orange); outline-offset: 2px; }
+    button:focus-visible, select:focus-visible, input:focus-visible, summary:focus-visible { outline: 3px solid var(--orange); outline-offset: 2px; }
     button:disabled { opacity: .5; cursor: wait; }
-    #go { flex: 1; }
-    #ice { width: 100%; margin-top: 8px; }
-    #search { width: 100%; font: inherit; border: 2px solid var(--ink); padding: 9px 10px; }
-    .ft { display: grid; grid-template-columns: 1fr auto; gap: 6px 8px; align-items: end; }
-    .ft label, .ft select { grid-column: 1; margin: 0; } .ft label { margin-top: 6px; }
-    #swap { grid-column: 2; grid-row: 1 / span 4; align-self: center; margin: 0; padding: 8px 10px; }
-    .check { display: flex; gap: 8px; align-items: center; justify-content: flex-start; font-size: 13px; color: var(--ink); margin: 6px 0; }
+    button.wide { width: 100%; }
+    .buttons { display: flex; gap: 8px; margin-top: 12px; }
+    .buttons > button:first-child { flex: 1; }
+    label { display: flex; justify-content: space-between; font-size: 12px; font-weight: 500; margin: 10px 0 4px; }
+    output { font: inherit; }
+    select { width: 100%; font: inherit; color: var(--ink); background: var(--paper); border: 1px solid var(--ink); border-radius: 0; padding: 7px 8px; }
+    input[type=range] { width: 100%; margin: 2px 0; accent-color: var(--ink); }
+    #search { width: 100%; font: inherit; border: 2px solid var(--ink); border-radius: 0; padding: 9px 10px; }
+    .row2 { display: flex; gap: 8px; } .row2 select { flex: 1; } .row2 button { padding: 6px 10px; }
+    .hint, .note { font-size: 12px; margin: 8px 0 0; }
+
+    /* Sector: route planner */
+    #panel { top: 76px; right: 12px; bottom: 12px; width: 360px; display: flex; flex-direction: column; }
+    #panel .scroll { overflow: auto; padding: 16px 20px 20px; }
+    .tabs { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; }
+    .tabs button { padding: 8px 2px; font-size: 12px; background: var(--paper); color: var(--ink); }
+    .tabs button.on { background: var(--ink); color: var(--paper); }
+    .tabs button.locked { color: var(--grey); border-color: var(--grey); }
+    #targets { margin-top: 8px; display: flex; flex-direction: column; gap: 4px; max-height: 230px; overflow: auto; }
+    .target { display: flex; align-items: center; gap: 10px; width: 100%; text-align: left; padding: 7px 10px; background: var(--paper);
+              border: 1px solid var(--ink); color: var(--ink); font: 13px Archivo, Arial, sans-serif; }
+    .target:hover, .target.on { background: var(--paper); color: var(--ink); border: 3px solid var(--orange); padding: 5px 8px; }
+    .target svg { flex: none; }
+    .target span { flex: 1; } .target small { font-size: 11px; }
+    .locked-box { padding: 12px; border: 1px dashed var(--ink); font-size: 12px; }
+    .locked-box b { display: block; font-size: 13px; margin-bottom: 4px; }
     #routes { display: grid; gap: 6px; margin-top: 10px; }
     .card { display: block; width: 100%; margin: 0; text-align: left; background: var(--paper); color: var(--ink); border: 1px solid var(--ink); padding: 8px 10px; font-weight: 400; }
     .card.on { border: 3px solid var(--orange); padding: 6px 8px; }
@@ -49,16 +94,9 @@
     #dirs { margin: 0; padding-left: 20px; font-size: 13px; }
     #dirs li { padding: 6px 0; border-bottom: 1px solid var(--ink); cursor: pointer; }
     #dirs li span { display: block; font-size: 12px; } #dirs li .warn { font-weight: 700; color: var(--orange); }
-    #dirs li.ends { cursor: default; font-weight: 700; } #dirBox[hidden] { display: none; }
-    .scalebar { background: rgba(255,255,255,.85); padding: 2px 6px; font-size: 11px; border: 1px solid var(--ink); }
-    .scalebar i { display: block; height: 5px; border: 2px solid var(--ink); border-top: 0; margin-bottom: 1px; }
-    table.here { border-collapse: collapse; margin: 6px 0; font-size: 12px; } table.here td { padding: 1px 10px 1px 0; }
-    .here-btns { display: flex; gap: 6px; } .here-btns button { margin: 0; padding: 5px 8px; font-size: 12px; }
-    #addStop.on { background: var(--orange); border-color: var(--orange); color: var(--paper); }
-    .pin.stop { background: var(--orange); color: var(--paper); border-color: var(--ink); }
-    .sources table { width: 100%; border-collapse: collapse; font-size: 12px; }
-    .sources td { padding: 3px 0; border-bottom: 1px solid var(--ink); vertical-align: top; }
-    .sources td:first-child { font-weight: 700; padding-right: 10px; white-space: nowrap; }
+    #dirs li.ends { cursor: default; font-weight: 700; }
+    details { margin-top: 16px; border-top: 4px solid var(--ink); padding-top: 10px; }
+    summary { cursor: pointer; font: 700 18px var(--narrow); }
     .kicker { margin: 14px 0 6px; padding-top: 6px; border-top: 1px solid var(--ink); font-size: 12px; font-weight: 700; }
     .stats { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 16px; }
     .stat b { display: block; font: 700 30px/1 var(--narrow); letter-spacing: -0.5px; }
@@ -66,95 +104,150 @@
     .stat.wide { grid-column: 1 / -1; } .stat.wide b { font-size: 52px; }
     .stat span { display: block; font-size: 12px; margin-top: 3px; }
     .stat span svg { vertical-align: -1px; margin-left: 4px; }
-    #chartBox[hidden] { display: none; }
-    .limits { margin-top: 12px; padding-bottom: 18px !important; border-top: 4px solid var(--ink); }
-    .limits p { margin: 0; font-size: 12px; }
-    footer { padding: 8px 20px; font-size: 11px; border-top: 1px solid var(--ink); }
+    .sources table { width: 100%; border-collapse: collapse; font-size: 12px; margin-top: 8px; }
+    .sources td { padding: 3px 0; border-bottom: 1px solid var(--ink); vertical-align: top; }
+    .sources td:first-child { font-weight: 700; padding-right: 10px; white-space: nowrap; }
+    #addStop.on { background: var(--orange); border-color: var(--orange); color: var(--paper); }
+
+    /* Go */
+    #nav, #view3d .hud3d { background: var(--ink); color: var(--paper); padding: 10px 14px; }
+    #nav { top: 76px; left: 60px; width: min(440px, calc(100% - 450px)); border: 0; }
+    #nav .next b, .hud3d .next b { font: 700 40px/1 var(--narrow); } #nav .next small, .hud3d .next small { font-size: 16px; margin-left: 3px; }
+    #nav .next span, .hud3d .next span { display: block; font-size: 14px; margin-top: 2px; }
+    #nav .row, .hud3d .row { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 12px; margin-top: 6px; }
+    #nav .warn, .hud3d .warn { margin-top: 6px; padding: 4px 8px; background: var(--orange); font-size: 13px; font-weight: 700; }
+
     /* Map */
-    .relief { filter: url(#marsTone); } /* shaded relief mapped to measured Mars colours, see the SVG filter below */
     .leaflet-container { font: 12px Archivo, Arial, sans-serif; }
     .leaflet-bar, .leaflet-control-layers { border: 1px solid var(--ink) !important; border-radius: 0 !important; box-shadow: none !important; }
     .leaflet-bar a { color: var(--ink) !important; border-radius: 0 !important; }
     .leaflet-popup-content-wrapper, .leaflet-popup-tip { border-radius: 0; box-shadow: none; border: 1px solid var(--ink); }
     .leaflet-control-attribution { color: var(--ink); }
     .legend { background: var(--paper); padding: 8px 10px; font-size: 11px; line-height: 1.8; border: 1px solid var(--ink); }
+    .scalebar { background: rgba(255,255,255,.85); padding: 2px 6px; font-size: 11px; border: 1px solid var(--ink); }
+    .scalebar i { display: block; height: 5px; border: 2px solid var(--ink); border-top: 0; margin-bottom: 1px; }
+    table.here { border-collapse: collapse; margin: 6px 0; font-size: 12px; } table.here td { padding: 1px 10px 1px 0; }
+    .here-btns { display: flex; gap: 6px; } .here-btns button { margin: 0; padding: 5px 8px; font-size: 12px; }
     .sym { display: inline-block; width: 14px; text-align: center; margin-right: 6px; }
+    .sym svg { vertical-align: -1px; }
     .mk svg, .hazard svg { display: block; }
-    .mk b { position: absolute; left: 15px; top: -1px; font-size: 10px; font-weight: 700; white-space: nowrap;
-            text-shadow: 0 0 2px #fff, 0 0 2px #fff, 0 0 3px #fff; }
+    .mk b { position: absolute; left: 15px; top: -2px; padding: 0 3px; font-size: 10px; font-weight: 700; white-space: nowrap; background: var(--paper); }
     .pin { border-radius: 50%; font: 700 10px/16px Archivo, Arial, sans-serif; text-align: center; border: 1px solid var(--ink); }
-    .pin.a { background: var(--paper); color: var(--ink); } .pin.b { background: var(--ink); color: var(--paper); }
+    .pin.a { background: var(--paper); color: var(--ink); } .pin.b { background: var(--ink); color: var(--paper); border-color: var(--paper); }
+    .pin.stop { background: var(--orange); color: var(--paper); }
+    .leaflet-marker-draggable.pin { cursor: grab; }
+    .me { background: var(--orange); border: 3px solid var(--paper); border-radius: 50%; box-shadow: 0 0 0 2px var(--ink); }
+    /* World: sector nodes and labels */
+    .node { position: relative; }
+    .node .ring { position: absolute; inset: 0; border: 2px solid var(--c); border-radius: 50%; }
+    .node .ring.pulse { animation: pulse 2s ease-out infinite; }
+    .node .ring.pulse.late { animation-delay: 1s; }
+    @keyframes pulse { from { transform: scale(.5); opacity: 1; } to { transform: scale(2.2); opacity: 0; } }
+    .node .core { position: absolute; inset: 32%; background: var(--c); border: 1px solid var(--ink); }
+    .node .label { position: absolute; left: calc(100% + 6px); top: 50%; transform: translateY(-50%); white-space: nowrap;
+                   padding: 3px 7px; background: var(--paper); border: 1px solid var(--ink); font: 700 13px/1.1 var(--narrow); }
+    .node .label small { display: block; font: 400 11px Archivo, Arial, sans-serif; }
+    .node.open { --c: var(--orange); cursor: pointer; } .node.locked { --c: var(--paper); cursor: pointer; }
+    .node.on .label { background: var(--ink); color: var(--paper); }
+    .feature { font-size: 11px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; color: rgba(255,255,255,.8);
+               white-space: nowrap; transform: translate(-50%, -50%); pointer-events: none; }
+    /* 3D overlay */
+    #view3d { position: fixed; inset: 0; z-index: 2000; background: #d0bdae; }
+    #view3d .bar3d { position: absolute; top: 14px; left: 14px; display: flex; gap: 8px; }
+    #view3d .hud3d { position: absolute; top: 14px; right: 14px; width: min(420px, calc(100% - 28px)); }
+    #view3d .tag3d { position: absolute; top: 22px; left: 50%; transform: translateX(-50%); padding: 4px 10px; background: var(--paper); font-size: 13px; font-weight: 700; }
+    #view3d p { position: absolute; left: 14px; bottom: 12px; margin: 0; font-size: 12px; color: #fff; text-shadow: 0 1px 2px #000; }
     @media (max-width: 760px) {
-      html, body { height: auto; } body { display: block; }
-      main { flex-direction: column; } #map { flex: none; height: 55vh; }
-      aside { width: auto; border-left: 0; overflow: visible; }
-      header p { display: none; }
+      #readout, #crumb, #view3d .tag3d { display: none; }
+      #card { left: 12px; right: 12px; top: auto; bottom: 12px; transform: none; width: auto; }
+      #panel { top: auto; left: 0; right: 0; bottom: 0; width: auto; height: 52vh; }
+      #nav { left: 12px; right: 12px; width: auto; }
+      #view3d .hud3d { top: 60px; left: 14px; right: 14px; width: auto; }
+      #hint { font-size: 11px; }
     }
   </style>
 </head>
 <body>
-  <!-- Mars colour ramp for the shaded relief. Middle = average colour of this region in the Viking orbiter colour mosaic
-       (#755a57, measured from Mars Trek's MDIM 2.1 colour tiles); dark and light keep that hue, stretched for readability. -->
-  <svg width="0" height="0" style="position:absolute" aria-hidden="true"><filter id="marsTone" color-interpolation-filters="sRGB">
-    <feColorMatrix type="saturate" values="0" />
-    <feComponentTransfer>
-      <feFuncR type="table" tableValues="0.243 0.459 0.722" />
-      <feFuncG type="table" tableValues="0.184 0.353 0.588" />
-      <feFuncB type="table" tableValues="0.180 0.341 0.561" />
-    </feComponentTransfer>
-  </filter></svg>
-  <header>
-    <h1>Arcadia<br>Pathfinder</h1>
-    <p>Safe Marswalks near shallow ice<br>Arcadia and Amazonis Planitia, Mars, 37.5°N to 41°N, 171°W to 156°W</p>
-  </header>
-  <main>
-    <div id="map"></div>
-    <aside>
-      <section>
-        <h2>Directions</h2>
-        <input id="search" list="placeList" placeholder="Search a site (S4, AP-1, ice) or lat, lon" aria-label="Search" />
-        <datalist id="placeList"></datalist><p class="hint" id="searchHint">Right-click anywhere on the map for "What's here?".</p>
-        <div class="ft">
-          <label for="start">From</label><select id="start"></select>
-          <label for="end">To</label><select id="end"></select>
-          <button id="swap" class="alt" title="Swap start and end">Swap</button>
-        </div>
-        <p class="hint">Or click the map twice: first the start, then the end.</p>
-        <div class="buttons"><button id="addStop" class="alt">Add science stops</button><button id="clearStops" class="alt" hidden>Clear stops</button></div>
-        <label class="check" id="avoidLooseRow"><input type="checkbox" id="avoidLoose" checked /> Avoid loose or dusty ground</label>
-        <label class="check" id="avoidCraterRow"><input type="checkbox" id="avoidCrater" checked /> Avoid crater rims</label>
+  <div id="map"></div>
+
+  <div id="top" class="hud">
+    <div class="logo">Arcadia<br>Pathfinder</div>
+    <button id="back" class="alt" hidden>World map</button>
+    <div id="crumb"><b>World map</b></div>
+    <div id="cbar" hidden title="MOLA elevation colour scale, kilometres above the Mars datum (areoid)">
+      <div class="cbar-head"><span>Elevation, MGS MOLA</span><span>km</span></div>
+      <div id="cbarBar"><i id="cbarMark" hidden></i></div>
+      <div id="cbarTicks"></div>
+    </div>
+    <div id="readout"></div>
+  </div>
+  <div id="hint" class="hud">Drag to explore Mars, then select a sector</div>
+  <div id="card" class="hud panel" hidden></div>
+  <div id="nav" class="hud panel" hidden></div>
+
+  <aside id="panel" class="hud panel" hidden>
+    <div class="scroll">
+      <div class="tag">Sector · route planner</div>
+      <h2 id="sectorName"></h2>
+      <div class="note" id="sectorWhere"></div>
+
+      <h3>Search</h3>
+      <input id="search" list="placeList" placeholder="Site (S4, AP-1), objective (I1) or lat, lon" aria-label="Search" />
+      <datalist id="placeList"></datalist><p class="hint" id="searchHint">Right-click anywhere on the map for "What's here?".</p>
+
+      <h3><i>01</i>Start from</h3>
+      <div class="row2"><select id="start" aria-label="Start (A)"></select><button id="swap" class="alt" title="Swap start and destination">Swap</button></div>
+      <p class="hint">Or click the map. Drag a pin to move it.</p>
+
+      <h3><i>02</i>Objective</h3>
+      <div class="tabs" role="tablist">
+        <button data-tab="ice" role="tab">Ice</button>
+        <button data-tab="mineral" role="tab">Minerals</button>
+        <button data-tab="sites" role="tab">Sites</button>
+        <button data-tab="pin" role="tab">Pin</button>
+      </div>
+      <div id="targets"></div>
+
+      <div class="buttons"><button id="go">Get routes</button><button id="navGo" class="alt" hidden>Go</button><button id="v3d" class="alt" title="3D view of the local area around your route">3D view</button></div>
+      <div id="routes"></div>
+
+      <h3><i>03</i>Route report</h3><div id="summary"><p class="note">No route yet.</p></div>
+      <section id="dirBox" hidden><h3>Step by step</h3><ol id="dirs"></ol></section>
+      <section id="chartBox" hidden><h3>Elevation profile</h3><canvas id="profile" height="150"></canvas></section>
+
+      <details>
+        <summary>Route options</summary>
         <label for="max">Steepest slope allowed <output id="maxv">15°</output></label>
         <input id="max" type="range" value="15" min="5" max="30" />
-        <button id="go" style="width:100%;margin-top:14px">Get routes</button>
-        <button id="ice" class="alt">Route from A to the nearest likely ice</button>
-        <div id="routes"></div>
-      </section>
-      <section id="dirBox" hidden><h2>Step by step</h2><ol id="dirs"></ol></section>
-      <section><h2>Summary</h2><div id="summary"><p class="note">No route yet.</p></div></section>
-      <section id="chartBox" hidden><h2>Elevation profile</h2><canvas id="profile" height="160"></canvas></section>
-      <section class="sources"><h2>Data in this map</h2>
+        <div id="looseRow"><label for="loose">Loose ground penalty <output id="loosev">×2</output></label>
+        <input id="loose" type="range" value="2" min="0" max="4" step="0.5" /></div>
+        <div id="craterRow"><label for="crater">Crater rim penalty <output id="craterv">×2</output></label>
+        <input id="crater" type="range" value="2" min="0" max="4" step="0.5" /></div>
+        <div class="buttons"><button id="addStop" class="alt">Add science stops</button><button id="clearStops" class="alt" hidden>Clear</button></div>
+      </details>
+
+      <details class="sources">
+        <summary>Data in this map</summary>
         <table>
-          <tr><td>Topographic</td><td>MOLA elevation and slope (Mars Global Surveyor)</td></tr>
+          <tr><td>Topographic</td><td>MOLA elevation and slope (Mars Global Surveyor); 463 m in the sector, 15 km worldwide</td></tr>
+          <tr><td>Colour</td><td>Viking orbiter colour mosaic, MDIM 2.1 (USGS)</td></tr>
           <tr><td>Optical</td><td>CTX mosaic and HiRISE images (Mars Reconnaissance Orbiter)</td></tr>
           <tr><td>Thermal</td><td>TES thermal inertia (Mars Global Surveyor)</td></tr>
           <tr><td>Spectral</td><td>TES Dust Cover Index (Mars Global Surveyor)</td></tr>
+          <tr><td>Mineral</td><td>OMEGA pyroxene map (Mars Express; Ody et al. 2012)</td></tr>
           <tr><td>Geophysical</td><td>SWIM ice: radar, neutron, thermal, landforms (several orbiters)</td></tr>
           <tr><td>Geologic</td><td>Robbins and Hynek crater catalog</td></tr>
+          <tr><td>Sites</td><td>HiRISE image centres; Golombek et al. 2021 (LPSC 52, abstract 2420) for AP and EM sites</td></tr>
         </table>
         <p class="note">No lander or rover has visited Arcadia or Amazonis, so there are no ground-level photos yet. Site popups link to HiRISE close-ups from orbit.</p>
-      </section>
-      <section class="limits"><h2>What this map can't see</h2>
-        <p>Anything smaller than about 460 m (boulders, small craters, cliffs), loose sand or dust that can trap a rover
-          or tire a walker, and weather such as dust storms. Check higher-resolution imagery before travel.</p>
-      </section>
-    </aside>
-  </main>
-  <footer>
-    Elevation from the <a href="https://astrogeology.usgs.gov/search/map/mars_mgs_mola_dem_463m">USGS MOLA DEM 463 m</a>.
-    Map tiles from <a href="https://trek.nasa.gov/mars/">NASA Mars Trek</a> (MOLA relief, and the CTX mosaic by the Caltech Murray Lab).
-    Site positions from <a href="https://www.uahirise.org">HiRISE</a>, University of Arizona.
-    Place names from the <a href="https://planetarynames.wr.usgs.gov/Feature/1821">USGS Gazetteer of Planetary Nomenclature</a>.
-  </footer>
+        <p class="note">What this map can't see: anything smaller than about 460 m (boulders, small craters, cliffs), loose sand or dust that can trap
+          a rover or tire a walker, and weather such as dust storms. Check higher-resolution imagery before travel.</p>
+        <p class="note">Elevation: <a href="https://astrogeology.usgs.gov/search/map/mars_mgs_mola_dem_463m">USGS MOLA DEM 463 m</a>. Tiles:
+          <a href="https://trek.nasa.gov/mars/">NASA Mars Trek</a>. Sites: <a href="https://www.uahirise.org">HiRISE</a>, NASA/JPL.
+          Names: <a href="https://planetarynames.wr.usgs.gov/">USGS Gazetteer of Planetary Nomenclature</a>.</p>
+      </details>
+    </div>
+  </aside>
   <script type="module" src="/src/main.js"></script>
 </body>
 </html>

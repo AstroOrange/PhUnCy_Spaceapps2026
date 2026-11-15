@@ -60,3 +60,44 @@ test('loose ground: firm and dust-free is 0, powdery or dusty is 1, no data is 0
   expect(loose(105, 0.97)).toBeCloseTo(0.5);
   expect(loose(NaN, NaN)).toBe(0);
 });
+
+import { peaks } from '../src/targets.js';
+
+test('targets: strongest spots first, spaced apart, below-threshold cells ignored', () => {
+  const meta = { bounds: [0, 1, 0, 1], rows: 10, cols: 10 }; // ~5.9 km cells
+  const g = new Float32Array(100);
+  g[0] = 0.9; g[1] = 0.8; g[99] = 0.7; g[50] = 0.1;
+  const t = peaks(g, meta, { min: 0.3, sepKm: 20 });
+  expect(t.map(x => x.value.toFixed(1))).toEqual(['0.9', '0.7']); // cell 1 is next to cell 0, so it is merged
+  expect(t[1].cell).toEqual([9, 9]);
+});
+
+import { cropGrid, cellLatLon } from '../src/geo.js';
+
+test('3D crop: keeps the route inside, shifts its cells, and places them at the same lat/lon', () => {
+  const m = { bounds: [0, 10, 0, 20], rows: 100, cols: 200 }, h = new Float32Array(100 * 200).map((_, i) => i);
+  const route = [[40, 50], [45, 70]];
+  const c = cropGrid(h, m, route, { minPad: 5, minSize: 10 });
+  expect(c.meta.rows * c.meta.cols).toBe(c.h.length);
+  c.cells.forEach(([r, col], k) => {
+    expect(c.h[r * c.meta.cols + col]).toBe(h[route[k][0] * 200 + route[k][1]]);
+    cellLatLon(c.meta, r, col).forEach((v, j) => expect(v).toBeCloseTo(cellLatLon(m, ...route[k])[j], 9));
+  });
+  expect(cropGrid(h, m, [[0, 0]]).meta.bounds[1]).toBe(10); // clamped at the grid edge
+  expect(cropGrid(h, m, []).h).toBe(h);
+});
+
+import { badTiles, FP } from '../src/tiles.js';
+
+test('imagery tiles: repeated pictures and flat grey tiles are dropped, real neighbours are kept', () => {
+  let seed = 1;
+  const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
+  const tile = f => { const gray = new Float32Array(FP * FP), alpha = new Uint8Array(FP * FP).fill(1); for (let i = 0; i < gray.length; i++) gray[i] = f(i % FP, (i / FP) | 0); return { gray, alpha }; };
+  const texA = tile(() => 100 + 60 * rnd()), texB = tile(() => 100 + 60 * rnd());
+  const copyA = { gray: texA.gray.map(v => v * 0.9 + 12 + 3 * rnd()), alpha: texA.alpha.slice() }; // same picture, re-encoded
+  copyA.alpha.fill(0, FP * FP * 0.6); // and with a no-data band, like the real repeats
+  const rampL = tile((c, r) => 60 + c * 2 + 8 * rnd()), rampR = tile((c, r) => 160 + c * 2 + 8 * rnd()); // neighbours with the same light trend
+  const flat = tile(() => 140), dust = tile(() => 140 + 5 * rnd()); // filler tile vs. real smooth dusty plain (std ~1.5)
+  const bad = badTiles([texA, texB, copyA, rampL, rampR, flat, null, dust]);
+  expect([...bad].sort()).toEqual([0, 2, 5]);
+});

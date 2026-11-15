@@ -3,13 +3,15 @@
 Usage: python scripts/prep_dem.py LAT_MIN LAT_MAX LON_MIN LON_MAX [--src data/raw/mola.tif] [--out public/data]
                                  [--layer NAME=PATH ...] [--craters CATALOG.csv(.zip)]
 Longitudes are -180..180 east. Outputs:
-  dem.bin    Float32 heights (m), row 0 = north, NaN = no data
-  slope.bin  Float32 slope (degrees), NaN = no data
-  NAME.bin   Float32, each --layer raster resampled onto the same grid, NaN = no data
-  crater.bin Float32 crater rim proximity 0..1 from the Robbins crater catalog (1 on the rim crest)
-  dem.json   {bounds: [latMin, latMax, lonMin, lonMax], rows, cols, layers: [NAME, ...]}
+  dem.i16    heights (m), row 0 = north
+  slope.i16  slope (degrees)
+  NAME.i16   each --layer raster resampled onto the same grid
+  crater.i16 crater rim proximity 0..1 from the Robbins crater catalog (1 on the rim crest)
+  dem.json   {bounds: [latMin, latMax, lonMin, lonMax], rows, cols, layers: [NAME, ...], packed: {NAME: {scale, offset}}}
+Grids are packed Int16 (see gridpack.py): value = raw * scale + offset, raw -32768 = no data.
 """
 import argparse, json, os
+from gridpack import save
 import numpy as np
 import rasterio
 from rasterio.warp import reproject, Resampling
@@ -51,13 +53,12 @@ gy, gx = np.gradient(dem, axis=(0, 1))
 slope = np.degrees(np.arctan(np.hypot(gx / dx, gy / dy))).astype(np.float32)
 
 os.makedirs(a.out, exist_ok=True)
-dem.astype(np.float32).tofile(f'{a.out}/dem.bin')
-slope.tofile(f'{a.out}/slope.bin')
+packed = {'dem': save(a.out, 'dem', dem), 'slope': save(a.out, 'slope', slope)}
 names = []
 for spec in a.layer:
     name, path = spec.split('=', 1)
     grid = warp(path).astype(np.float32)
-    grid.tofile(f'{a.out}/{name}.bin')
+    packed[name] = save(a.out, name, grid)
     names.append(name)
     print(f'{name}: {np.isnan(grid).mean():.1%} no data, range {np.nanmin(grid):.2f}..{np.nanmax(grid):.2f}')
 if a.craters:
@@ -84,10 +85,10 @@ if a.craters:
         score = np.clip(1 - np.abs(np.hypot(dx, dy) - R) / band, 0, 1)
         np.maximum(rim[r0:r1, c0:c1], score, out=rim[r0:r1, c0:c1])
         used += 1
-    rim.tofile(f'{a.out}/crater.bin')
+    packed['crater'] = save(a.out, 'crater', rim)
     names.append('crater')
     print(f'crater: {used} craters in the box, {(rim > 0.5).mean():.1%} of cells near a rim')
-json.dump({'bounds': [a.lat_min, a.lat_max, a.lon_min, a.lon_max], 'rows': rows, 'cols': cols, 'layers': names},
+json.dump({'bounds': [a.lat_min, a.lat_max, a.lon_min, a.lon_max], 'rows': rows, 'cols': cols, 'layers': names, 'packed': packed},
           open(f'{a.out}/dem.json', 'w'))
 print(f'{rows}x{cols} cells, {np.isnan(dem).mean():.1%} no data, '
       f'height {np.nanmin(dem):.0f}..{np.nanmax(dem):.0f} m, max slope {np.nanmax(slope):.1f} deg')
