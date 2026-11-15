@@ -29,6 +29,9 @@ and EM-16 (Golombek et al. 2021).
    for the directions and hazard warnings.
 5. Press **Go** to play the route back with distance left, which way to head and hazards ahead.
    Press **3D view** to see the land around the route.
+   Press **POV** to travel the route in first person with a head-up display: drag, use the arrow keys (or W A S D), or on a
+   phone tap **Use motion** and turn the phone, to look around. Space pauses, `[` and `]` change the playback speed,
+   H switches between Hover and Eye level, C recentres, M enlarges the map, Esc goes back.
 6. Right-click anywhere for "What's here?": height, slope, ice, minerals, loose ground and crater rims at that spot.
    **Route options** sets the steepest slope allowed and how strongly to avoid loose ground and crater rims.
 
@@ -57,6 +60,12 @@ In Chrome or Edge you can also install it like an app (the install icon in the a
 - 3D view of the area around the route, cut from the 463 m grid (`cropGrid`), with CTX imagery tinted to the region's measured
   Viking colour, a sky measured from Viking Lander 2's photo (PIA01522), and a follow camera when Go plays in 3D.
   Vertical exaggeration 3× to 12×, shown on screen. Repeated or grey CTX tiles are dropped (`src/tiles.js`).
+- POV: a first-person playback of the route (`src/pov.js`). The view moves along the route by itself; you only choose where
+  to look, by keyboard, drag or the phone's motion sensors (`src/look.js`). There is no route line in the view: floating
+  arrows show the way and a beacon marks the next stop, while the route line is on the HUD map. The HUD shows distance to
+  the next stop and to B, a compass, elevation, slope, climb left, hazards in the next 1 km, and a time estimate at an
+  assumed 10 km/h (see Limitations). Hover (30 m up, heights drawn 3× taller) or Eye level (1.7 m, true scale).
+  Pause and playback speed ×10 to ×1000 of the assumed speed.
 - Elevation profile, a scale bar measured on Mars, data overlays. Works offline (PWA). Shareable link: the URL hash stores
   `startLat,startLon,endLat,endLon`.
 
@@ -72,7 +81,7 @@ Loose ground is a 0 to 1 score from TES thermal inertia (150+ firm, 60 or lower 
 ## Developer commands
     npm install
     npm run dev      # http://localhost:5173
-    npm test         # 12 unit tests: maths, A*, hazards, targets, 3D crop, tiles
+    npm test         # 18 unit tests: maths, A*, hazards, targets, 3D crop, tiles, navigation, phone orientation
     npm run build    # static site in dist/ (deploy to Vercel or GitHub Pages)
 
 ## Prepare data (one time, already done)
@@ -120,8 +129,11 @@ Longitudes are -180..180 east. Distances use Mars radius 3389.5 km.
 - Ice, dust and thermal data are coarser than the grid (about 3 km): they mark zones, not exact spots.
 - Ice scores here peak at 0.50 on a -1 to +1 scale: "likely" means the orbiter data is consistent with ice, not proof.
 - Craters wider than 100 km are skipped as rims: these ancient basins are worn down and their relief is already in the slope grid.
-- No travel times: there is no measured walking or rover speed on Mars for suited astronauts, so routes report distance,
-  climb, slope and hazards only.
+- No measured travel times: there is no measured walking or rover speed on Mars for suited astronauts, so routes report
+  distance, climb, slope and hazards only. The one exception is POV's "time left", which divides the distance left by an
+  assumed 10 km/h (`ASSUMED_KMH` in `src/nav.js`). It is a placeholder, labelled as assumed on screen, and ignores slope and ground.
+- POV at Eye level looks flat and blurred: heights are one sample every 463 m and the imagery is far coarser than a
+  ground-level view. Motion look-around needs HTTPS (or localhost) and, on iPhone, permission from a tap.
 - Site positions are HiRISE image centres, not exact landing points. Directions are from the grid route, so headings are approximate.
 - The CTX mosaic has gaps and brightness seams, and its server sometimes repeats one tile or sends grey filler; the 3D view
   drops those and shows coarser imagery of the right place, with the count on screen. The 2D CTX layer comes straight from the server.

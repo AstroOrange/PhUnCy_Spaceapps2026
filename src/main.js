@@ -7,6 +7,7 @@ import '@fontsource/archivo-narrow/latin-700.css';
 import Chart from 'chart.js/auto';
 import { haversine, cellLatLon, latLonCell, cropGrid, M_PER_DEG } from './geo.js';
 import { hazardGrids } from './hazards.js';
+import { ASSUMED_KMH, bearingDeg, compassWord, navState } from './nav.js';
 import { peaks } from './targets.js';
 import { SECTORS, FEATURES } from './hub.js';
 
@@ -220,7 +221,7 @@ async function enterSector(animate = true) {
 }
 function leaveSector() {
   mode = 'world';
-  stopNav();
+  pov?.close(); stopNav();
   showSector(false);
   legend.remove();
   $('panel').hidden = $('back').hidden = $('nav').hidden = true;
@@ -430,11 +431,7 @@ function measure(r) {
 }
 
 // Step-by-step directions: a new step when the heading changes (after at least 1 km) or at a stop
-const DIRS = ['north', 'north-east', 'east', 'south-east', 'south', 'south-west', 'west', 'north-west'];
-function bearing([la1, lo1], [la2, lo2]) {
-  const y = (lo2 - lo1) * Math.cos((la1 + la2) * Math.PI / 360), x = la2 - la1;
-  return DIRS[Math.round(((Math.atan2(y, x) * 180 / Math.PI + 360) % 360) / 45) % 8];
-}
+const bearing = (a, b) => compassWord(bearingDeg(a, b));
 const endName = k => (k === routes[sel].ends.length - 1 ? (toIceMode ? 'the likely ice' : 'B') : `stop ${k + 1}`);
 function steps(r) {
   const { ll, cum, ends, idx } = r, out = [];
@@ -467,8 +464,8 @@ function steps(r) {
 let drawn = [], steep, chart, stepLine;
 function render() {
   drawn.forEach(l => l.remove()); steep?.remove(); chart?.destroy(); stepLine?.remove(); drawn = [];
-  stopNav(); $('nav').hidden = true;
-  $('chartBox').hidden = $('dirBox').hidden = $('navGo').hidden = !routes.length;
+  pov?.close(); stopNav(); $('nav').hidden = true;
+  $('chartBox').hidden = $('dirBox').hidden = $('navGo').hidden = $('navPov').hidden = !routes.length;
   $('routes').innerHTML = '';
   if (!routes.length) return msg(toIceMode ? `No likely ice can be reached while staying under ${$('max').value}°.`
     : `No route stays under ${$('max').value}°. Allow a steeper slope or pick other points.`);
@@ -522,52 +519,63 @@ function render() {
 
 // Go: a marker plays the selected route from A to B in about a minute, showing the distance left, the heading
 // and measured hazards in the next kilometre. It is a playback of the plan, not a position fix (Mars has no GPS).
-const PLAY_S = 60;
-let nav = null, view3d = null;
-function at(r, d) { // position and path index at distance d (m) along the route
-  const c = r.cum;
-  let j = 1;
-  while (j < c.length - 1 && c[j] < d) j++;
-  const f = Math.min(1, Math.max(0, (d - c[j - 1]) / (c[j] - c[j - 1] || 1))), [a, b] = [r.ll[j - 1], r.ll[j]];
-  return { ll: [a[0] + (b[0] - a[0]) * f, a[1] + (b[1] - a[1]) * f], j };
-}
+// POV plays the same route from the traveller's own eyes, at a multiple of an assumed travel speed, and can be paused.
+const PLAY_S = 60, POV_MULT = [10, 30, 100, 300, 1000];
+let nav = null, view3d = null, pov = null;
 function stopNav() {
   if (nav) cancelAnimationFrame(nav.raf), nav.me.remove(), view3d?.stop();
   nav = null;
   $('navGo').textContent = 'Go';
 }
-function startNav() {
+// mult: index into POV_MULT for POV playback; left out for Go's fixed one-minute playback
+function startNav(mult) {
   const r = routes[sel];
   if (!r) return;
   const total = r.cum.at(-1);
   map.fitBounds(L.latLngBounds(r.ll).pad(0.4), { animate: false, ...padFor() }); // zoom to the route so the playback is visible
-  nav = { me: L.marker(r.ll[0], { ...inSector, icon: icon('', 'me', 16), zIndexOffset: 2000 }).addTo(map), t0: performance.now() };
+  nav = { me: L.marker(r.ll[0], { ...inSector, icon: icon('', 'me', 16), zIndexOffset: 2000 }).addTo(map), d: 0, last: 0, paused: false, mult };
   $('navGo').textContent = 'Stop';
   $('nav').hidden = false;
   const tick = now => {
-    const d = Math.min(total, ((now - nav.t0) / 1000 / PLAY_S) * total), pos = at(r, d);
+    const dt = nav.last ? Math.min(0.25, (now - nav.last) / 1000) : 0;
+    nav.last = now;
+    const rate = nav.mult == null ? total / PLAY_S : ASSUMED_KMH / 3.6 * POV_MULT[nav.mult]; // metres of route per second
+    if (!nav.paused) nav.d = Math.min(total, nav.d + dt * rate);
+    const st = navState(r, nav.d, { h, s, hazards, maxSlope: +$('max').value }), { d, pos } = st;
     nav.me.setLatLng(pos.ll);
     if (!map.getBounds().pad(-0.2).contains(pos.ll)) map.panTo(pos.ll, { animate: false });
-    const leg = r.ends.findIndex(e => e >= pos.j), endD = r.cum[r.ends[leg]];
-    let warn = ''; // look 1 km ahead for hazards
-    for (let k = pos.j; k < r.idx.length && r.cum[k] - d < 1000; k++) {
-      const i = r.idx[k], inM = Math.max(0, Math.round((r.cum[k] - d) / 100) * 100);
-      if (s[i] > 0.7 * +$('max').value) { warn = `Steep ground in ${inM} m (${s[i].toFixed(0)}°)`; break; }
-      if (hazards.crater?.[i] > 0.5) { warn = `Crater rim in ${inM} m`; break; }
-      if (hazards.loose?.[i] > 0.7) { warn = `Loose ground in ${inM} m`; break; }
-    }
-    $('nav').innerHTML = `<div class="next"><b>${((endD - d) / 1000).toFixed(1)}<small>km</small></b>
-      <span>to ${endName(leg)}${d < total ? `, head ${bearing(pos.ll, at(r, Math.min(total, d + 300)).ll)}` : ''}</span></div>
-      <div class="row"><span>${(d / 1000).toFixed(1)} of ${(total / 1000).toFixed(1)} km</span><span>Elevation ${Math.round(h[r.idx[pos.j]]).toLocaleString('en')} m</span></div>
-      ${warn ? `<div class="warn">Ahead: ${warn}</div>` : ''}
-      ${d >= total ? `<div class="row"><span>Arrived at ${endName(r.ends.length - 1)}. Playback of the plan, not GPS.</span></div>` : ''}`;
+    $('nav').innerHTML = `<div class="next"><b>${(st.toNext / 1000).toFixed(1)}<small>km</small></b>
+      <span>to ${endName(st.leg)}${d < total ? `, head ${compassWord(st.headingDeg)}` : ''}</span></div>
+      <div class="row"><span>${(d / 1000).toFixed(1)} of ${(total / 1000).toFixed(1)} km</span><span>Elevation ${Math.round(st.elev).toLocaleString('en')} m</span></div>
+      ${st.warn ? `<div class="warn">Ahead: ${st.warn}</div>` : ''}
+      ${st.arrived ? `<div class="row"><span>Arrived at ${endName(r.ends.length - 1)}. Playback of the plan, not GPS.</span></div>` : ''}`;
     view3d?.setProgress(d / total, $('nav').innerHTML);
-    if (d < total) nav.raf = requestAnimationFrame(tick);
+    pov?.update({ ...st, toName: endName(st.leg), paused: nav.paused, mult: POV_MULT[nav.mult] });
+    if (!st.arrived || pov) nav.raf = requestAnimationFrame(tick); // POV keeps listening so it can be replayed
     else { $('navGo').textContent = 'Go'; view3d?.stop(); }
   };
   nav.raf = requestAnimationFrame(tick);
 }
 $('navGo').onclick = () => (nav && $('navGo').textContent === 'Stop' ? stopNav() : (stopNav(), startNav()));
+
+// POV: first-person playback with a head-up display. The route line is on the HUD map; arrows in the view show the way.
+$('navPov').onclick = async () => {
+  const r = routes[sel];
+  if (!r || pov) return;
+  stopNav();
+  const local = cropGrid(h, meta, r.path, { minPad: 40 });
+  const { openPOV } = await import('./pov.js');
+  pov = openPOV(local.h, local.meta, local.cells, {
+    cum: r.cum, ends: r.ends,
+    onClose: () => { pov = null; stopNav(); $('nav').hidden = true; },
+    onControl: a => {
+      if (!nav) return;
+      if (a === 'pause') { if (nav.d >= r.cum.at(-1)) nav.d = 0, nav.paused = false; else nav.paused = !nav.paused; }
+      else nav.mult = Math.min(POV_MULT.length - 1, Math.max(0, nav.mult + (a === 'faster' ? 1 : -1)));
+    },
+  });
+  startNav(1);
+};
 
 // Local 3D view: the terrain around the route (or around the pins), at full resolution. Go plays the route there too.
 $('v3d').onclick = async () => {

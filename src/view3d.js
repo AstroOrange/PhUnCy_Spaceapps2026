@@ -34,7 +34,7 @@ function loadTiles(L, [latMin, latMax, lonMin, lonMax]) {
     img.src = CTX(L, t.y, t.x);
   }))).then(tiles => { const bad = badTiles(tiles.map(t => t.fp)); return tiles.map((t, i) => ({ ...t, ok: !!t.img && !bad.has(i) })); });
 }
-async function imagery({ bounds }) {
+export async function imagery({ bounds }) {
   const [latMin, latMax, lonMin, lonMax] = bounds;
   const L = Math.min(11, Math.max(0, Math.floor(Math.log2(4096 * 360 / ((lonMax - lonMin) * 1024))))); // floor: texture stays within 4096 px
   const px = 512 * 2 ** L / 180; // canvas pixels per degree
