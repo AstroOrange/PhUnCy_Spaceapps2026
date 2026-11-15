@@ -9,128 +9,148 @@
   <link rel="apple-touch-icon" href="logo-192.png" />
   <title>Arcadia Pathfinder</title>
   <style>
-    :root { --ink: #000; --paper: #fff; --orange: #f04e23; --grey: #6b6b6b; --narrow: 'Archivo Narrow', 'Arial Narrow', sans-serif; }
+    :root { --ink: #000; --paper: #fff; --orange: #f04e23; --tint: #fff3ef; --grey: #666; --hair: #d9d9d9; --soft: #f4f4f2;
+            --narrow: 'Archivo Narrow', 'Arial Narrow', sans-serif; --mono: ui-monospace, Consolas, monospace; --top: 64px; --side: 400px; }
     * { box-sizing: border-box; }
     [hidden] { display: none !important; }
     html, body { margin: 0; height: 100%; overflow: hidden; background: var(--paper); color: var(--ink);
-                 font: 14px/1.4 Archivo, Arial, sans-serif; font-variant-numeric: tabular-nums; }
+                 font: 14px/1.45 Archivo, Arial, sans-serif; font-variant-numeric: tabular-nums; }
     a { color: var(--ink); text-underline-offset: 2px; }
-    #map { position: fixed; inset: 64px 0 0; background: #584649; }
-    .hud { position: fixed; z-index: 1000; }
 
     /* Header */
-    #top { top: 0; left: 0; right: 0; height: 64px; display: flex; align-items: center; gap: 18px; padding: 0 20px;
+    #top { position: fixed; z-index: 10; top: 0; left: 0; right: 0; height: var(--top); display: flex; align-items: center; gap: 16px; padding: 0 16px;
            background: var(--paper); border-bottom: 4px solid var(--ink); }
-    .logo { display: flex; align-items: center; gap: 8px; font: 700 24px/0.95 var(--narrow); letter-spacing: -0.5px; }
-    #crumb { font-size: 13px; } #crumb b { font-weight: 700; }
-    #cbar { margin-left: auto; width: min(360px, 30vw); font-size: 10px; }
+    .logo { display: flex; align-items: center; gap: 8px; font: 700 22px/0.95 var(--narrow); letter-spacing: -0.5px; }
+    #crumb { font-size: 13px; color: var(--grey); white-space: nowrap; } #crumb b { color: var(--ink); }
+    #find { width: 220px; }
+    #cbar { width: min(300px, 24vw); font-size: 10px; }
     .cbar-head { display: flex; justify-content: space-between; font-weight: 700; margin-bottom: 2px; }
     #cbarBar { position: relative; height: 10px; border: 1px solid var(--ink); }
     #cbarMark { position: absolute; top: -5px; width: 0; height: 0; transform: translateX(-5px);
                 border: 5px solid transparent; border-top: 6px solid var(--ink); border-bottom: 0; }
     #cbarTicks { position: relative; height: 13px; margin-top: 1px; }
     #cbarTicks span { position: absolute; transform: translateX(-50%); }
-    #readout { margin-left: auto; font: 12px ui-monospace, Consolas, monospace; text-align: right; white-space: pre; }
-    #readout b { font-weight: 700; }
-    #back { padding: 7px 12px; font-size: 12px; }
-    #hint { bottom: 26px; left: 50%; transform: translateX(-50%); padding: 6px 12px; background: var(--paper); border: 2px solid var(--ink);
-            font-size: 13px; font-weight: 700; pointer-events: none; white-space: nowrap; }
+    #readout { margin-left: auto; font: 12px/1.5 var(--mono); color: var(--grey); text-align: right; white-space: pre; }
+    #readout b { color: var(--ink); font-weight: 700; }
 
-    /* Panels */
-    .panel { background: var(--paper); border: 2px solid var(--ink); }
-    .tag { font-size: 12px; font-weight: 700; }
-    h2 { margin: 2px 0 8px; font: 700 26px/1 var(--narrow); letter-spacing: -0.5px; }
-    h3 { margin: 18px 0 8px; padding-top: 8px; border-top: 4px solid var(--ink); font: 700 18px var(--narrow); }
-    h3 i { font-style: normal; color: var(--orange); margin-right: 6px; }
-
-    /* World: sector card */
-    #card { right: 24px; top: 50%; transform: translateY(-50%); width: 340px; padding: 20px 22px; }
+    /* Map stage: full width on the world map, beside the planner inside a sector */
+    #stage { position: fixed; inset: var(--top) 0 0 0; }
+    .sector #stage { right: var(--side); }
+    #map { position: absolute; inset: 0; z-index: 0; background: #584649; }
+    .float { position: absolute; z-index: 2; background: var(--paper); border: 1px solid var(--ink); box-shadow: 0 2px 10px rgba(0, 0, 0, .28); }
+    #bases { top: 10px; left: 54px; display: flex; }
+    #bases button { padding: 7px 11px; font-size: 12px; border: 0; border-right: 1px solid var(--ink); background: var(--paper); color: var(--ink); }
+    #bases button:last-child { border-right: 0; }
+    #bases button.on { background: var(--ink); color: var(--paper); }
+    #baseNote { top: 50px; left: 54px; padding: 5px 9px; font-size: 12px; white-space: nowrap; border-color: var(--orange); }
+    #key { top: 50px; left: 54px; max-width: 280px; max-height: calc(100% - 90px); overflow: auto; font-size: 12px; }
+    #baseNote:not([hidden]) ~ #key { top: 86px; }
+    #key summary { padding: 7px 11px; font: 700 12px Archivo, Arial, sans-serif; list-style-position: inside; }
+    #key .rows { padding: 0 11px 10px; }
+    #key h4 { margin: 8px 0 3px; font-size: 11px; color: var(--grey); font-weight: 700; }
+    #key label, #key .row { display: flex; align-items: center; gap: 7px; margin: 0; padding: 2px 0; font-size: 12px; font-weight: 400; justify-content: flex-start; }
+    #key label { cursor: pointer; } #key input { margin: 0; accent-color: var(--ink); }
+    .sym { flex: none; display: inline-flex; width: 14px; justify-content: center; }
+    #key p { margin: 6px 0 0; color: var(--grey); }
+    #hint { bottom: 26px; left: 50%; transform: translateX(-50%); padding: 7px 14px; font-size: 13px; font-weight: 700; pointer-events: none; white-space: nowrap; border-width: 2px; }
+    #card { right: 24px; top: 50%; transform: translateY(-50%); width: 340px; padding: 20px 22px; border-width: 2px; }
     #card p { font-size: 13px; margin: 8px 0; }
     #card .status { display: inline-block; font-size: 12px; font-weight: 700; padding: 2px 8px; border: 2px solid currentColor; }
     #card .status.open { color: var(--orange); } #card .status.locked { color: var(--grey); }
     .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px 16px; margin: 14px 0; }
     .grid div b { display: block; font: 700 28px/1 var(--narrow); }
     .grid div b small { font-size: 14px; margin-left: 2px; }
-    .grid div span { font-size: 12px; }
-
-    /* Buttons and inputs */
-    button { font: 700 14px Archivo, Arial, sans-serif; border-radius: 0; padding: 10px 14px; cursor: pointer;
-             border: 2px solid var(--ink); background: var(--ink); color: var(--paper); }
-    button.alt { background: var(--paper); color: var(--ink); }
-    button:hover { background: var(--orange); border-color: var(--orange); color: var(--paper); }
-    button:active { transform: translateY(1px); }
-    button:focus-visible, select:focus-visible, input:focus-visible, summary:focus-visible { outline: 3px solid var(--orange); outline-offset: 2px; }
-    button:disabled { opacity: .5; cursor: wait; }
-    button.wide { width: 100%; }
-    .buttons { display: flex; gap: 8px; margin-top: 12px; }
-    .buttons > button:first-child { flex: 1; }
-    label { display: flex; justify-content: space-between; font-size: 12px; font-weight: 500; margin: 10px 0 4px; }
-    output { font: inherit; }
-    select { width: 100%; font: inherit; color: var(--ink); background: var(--paper); border: 1px solid var(--ink); border-radius: 0; padding: 7px 8px; }
-    input[type=range] { width: 100%; margin: 2px 0; accent-color: var(--ink); }
-    #search { width: 100%; font: inherit; border: 2px solid var(--ink); border-radius: 0; padding: 9px 10px; }
-    .row2 { display: flex; gap: 8px; } .row2 select { flex: 1; } .row2 button { padding: 6px 10px; }
-    .hint, .note { font-size: 12px; margin: 8px 0 0; }
-
-    /* Sector: route planner */
-    #panel { top: 76px; right: 12px; bottom: 12px; width: 360px; display: flex; flex-direction: column; }
-    #panel .scroll { overflow: auto; padding: 16px 20px 20px; }
-    .tabs { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; }
-    .tabs button { padding: 8px 2px; font-size: 12px; background: var(--paper); color: var(--ink); }
-    .tabs button.on { background: var(--ink); color: var(--paper); }
-    .tabs button.locked { color: var(--grey); border-color: var(--grey); }
-    #targets { margin-top: 8px; display: flex; flex-direction: column; gap: 4px; max-height: 230px; overflow: auto; }
-    .target { display: flex; align-items: center; gap: 10px; width: 100%; text-align: left; padding: 7px 10px; background: var(--paper);
-              border: 1px solid var(--ink); color: var(--ink); font: 13px Archivo, Arial, sans-serif; }
-    .target:hover, .target.on { background: var(--paper); color: var(--ink); border: 3px solid var(--orange); padding: 5px 8px; }
-    .target svg { flex: none; }
-    .target span { flex: 1; } .target small { font-size: 11px; }
-    .locked-box { padding: 12px; border: 1px dashed var(--ink); font-size: 12px; }
-    .locked-box b { display: block; font-size: 13px; margin-bottom: 4px; }
-    #routes { display: grid; gap: 6px; margin-top: 10px; }
-    .card { display: block; width: 100%; margin: 0; text-align: left; background: var(--paper); color: var(--ink); border: 1px solid var(--ink); padding: 8px 10px; font-weight: 400; }
-    .card.on { border: 3px solid var(--orange); padding: 6px 8px; }
-    .card .t { display: flex; justify-content: space-between; font-size: 15px; } .card small { display: block; margin-top: 2px; }
-    .card:hover { background: var(--paper); color: var(--ink); border-color: var(--orange); }
-    #dirs { margin: 0; padding-left: 20px; font-size: 13px; }
-    #dirs li { padding: 6px 0; border-bottom: 1px solid var(--ink); cursor: pointer; }
-    #dirs li span { display: block; font-size: 12px; } #dirs li .warn { font-weight: 700; color: var(--orange); }
-    #dirs li.ends { cursor: default; font-weight: 700; }
-    details { margin-top: 16px; border-top: 4px solid var(--ink); padding-top: 10px; }
-    summary { cursor: pointer; font: 700 18px var(--narrow); }
-    .kicker { margin: 14px 0 6px; padding-top: 6px; border-top: 1px solid var(--ink); font-size: 12px; font-weight: 700; }
-    .stats { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 16px; }
-    .stat b { display: block; font: 700 30px/1 var(--narrow); letter-spacing: -0.5px; }
-    .stat b small { font-size: 15px; margin-left: 3px; letter-spacing: 0; }
-    .stat.wide { grid-column: 1 / -1; } .stat.wide b { font-size: 52px; }
-    .stat span { display: block; font-size: 12px; margin-top: 3px; }
-    .stat span svg { vertical-align: -1px; margin-left: 4px; }
-    .sources table { width: 100%; border-collapse: collapse; font-size: 12px; margin-top: 8px; }
-    .sources td { padding: 3px 0; border-bottom: 1px solid var(--ink); vertical-align: top; }
-    .sources td:first-child { font-weight: 700; padding-right: 10px; white-space: nowrap; }
-    #addStop.on { background: var(--orange); border-color: var(--orange); color: var(--paper); }
-
-    /* Go */
+    .grid div span { font-size: 12px; color: var(--grey); }
+    #nav { bottom: 30px; left: 50%; transform: translateX(-50%); width: min(430px, calc(100% - 24px)); border: 0; }
     #nav, #view3d .hud3d { background: var(--ink); color: var(--paper); padding: 10px 14px; }
-    #nav { top: 76px; left: 60px; width: min(440px, calc(100% - 450px)); border: 0; }
     #nav .next b, .hud3d .next b { font: 700 40px/1 var(--narrow); } #nav .next small, .hud3d .next small { font-size: 16px; margin-left: 3px; }
     #nav .next span, .hud3d .next span { display: block; font-size: 14px; margin-top: 2px; }
     #nav .row, .hud3d .row { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 12px; margin-top: 6px; }
     #nav .warn, .hud3d .warn { margin-top: 6px; padding: 4px 8px; background: var(--orange); font-size: 13px; font-weight: 700; }
 
+    /* Type, buttons, inputs */
+    .tag { font-size: 12px; font-weight: 700; color: var(--grey); }
+    h2 { margin: 2px 0 6px; font: 700 26px/1 var(--narrow); letter-spacing: -0.5px; }
+    h3 { display: flex; align-items: center; gap: 8px; margin: 0 0 10px; font: 700 18px var(--narrow); }
+    h3 i { flex: none; width: 22px; height: 22px; border-radius: 50%; background: var(--orange); color: var(--paper); font: 700 12px/22px Archivo, Arial, sans-serif; text-align: center; }
+    h3 .mini { margin-left: auto; }
+    button { font: 700 13px Archivo, Arial, sans-serif; border-radius: 0; padding: 9px 14px; cursor: pointer;
+             border: 1px solid var(--ink); background: var(--ink); color: var(--paper); }
+    button.alt { background: var(--paper); color: var(--ink); }
+    button.mini { padding: 4px 9px; font-size: 12px; }
+    button:hover:not(:disabled) { background: var(--orange); border-color: var(--orange); color: var(--paper); }
+    button:active { transform: translateY(1px); }
+    button:focus-visible, select:focus-visible, input:focus-visible, summary:focus-visible { outline: 3px solid var(--orange); outline-offset: 2px; }
+    button:disabled { opacity: .45; cursor: default; }
+    button.wide { width: 100%; }
+    .buttons { display: flex; gap: 8px; margin-top: 12px; }
+    .buttons > button:first-child { flex: 1; }
+    label { display: flex; justify-content: space-between; font-size: 12px; font-weight: 500; margin: 12px 0 4px; }
+    output { font: inherit; font-weight: 700; }
+    select { width: 100%; font: inherit; color: var(--ink); background: var(--paper); border: 1px solid var(--ink); border-radius: 0; padding: 8px; cursor: pointer; }
+    input[type=range] { width: 100%; margin: 2px 0; accent-color: var(--ink); }
+    .hint, .note { font-size: 12px; color: var(--grey); margin: 6px 0 0; }
+    summary { cursor: pointer; }
+
+    /* Planner */
+    #panel { position: fixed; z-index: 5; top: var(--top); right: 0; bottom: 0; width: var(--side); overflow: auto; background: var(--paper); border-left: 2px solid var(--ink); }
+    #panel > * { padding: 16px 20px; border-bottom: 1px solid var(--hair); }
+    #panel > .phead { border-bottom: 2px solid var(--ink); }
+    .tabs { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; border: 1px solid var(--ink); }
+    .tabs button { padding: 7px 2px; font-size: 12px; border: 0; border-right: 1px solid var(--ink); background: var(--paper); color: var(--ink); }
+    .tabs button:last-child { border-right: 0; }
+    .tabs button.on { background: var(--ink); color: var(--paper); }
+    .tabs button.locked { color: var(--grey); }
+    #targets { margin-top: 8px; max-height: 236px; overflow: auto; border: 1px solid var(--hair); }
+    #targets:empty { display: none; }
+    .target { display: flex; align-items: center; gap: 9px; width: 100%; text-align: left; padding: 7px 10px; background: var(--paper); color: var(--ink);
+              border: 0; border-bottom: 1px solid var(--hair); border-left: 4px solid transparent; font-weight: 400; }
+    .target:last-child { border-bottom: 0; }
+    .target:hover:not(:disabled) { background: var(--soft); color: var(--ink); border-color: var(--hair); border-left-color: var(--ink); }
+    .target.on, .target.on:hover:not(:disabled) { background: var(--tint); border-left-color: var(--orange); font-weight: 700; }
+    .target span { flex: 1; } .target small { font-size: 12px; color: var(--grey); white-space: nowrap; }
+    #targets .wide { border: 0; border-top: 1px solid var(--ink); }
+    .box { margin: 0; padding: 10px 12px; font-size: 12px; color: var(--grey); }
+    .box b { display: block; color: var(--ink); font-size: 13px; margin-bottom: 2px; }
+    #status { color: var(--ink); font-weight: 500; background: var(--soft); }
+    #routes { display: grid; gap: 6px; }
+    .card { display: block; width: 100%; text-align: left; background: var(--paper); color: var(--ink); border: 1px solid var(--hair); border-left: 4px solid var(--grey); padding: 8px 10px; font-weight: 400; }
+    .card:hover:not(:disabled) { background: var(--soft); color: var(--ink); border-color: var(--hair); border-left-color: var(--ink); }
+    .card.on, .card.on:hover:not(:disabled) { background: var(--tint); border-color: var(--orange); border-left-color: var(--orange); }
+    .card .t { display: flex; justify-content: space-between; align-items: baseline; font-size: 15px; } .card .t span { font: 700 20px var(--narrow); }
+    .card small { display: block; color: var(--grey); font-size: 12px; }
+    .views { margin-top: 14px; }
+    .kicker { margin: 14px 0 6px; font-size: 12px; font-weight: 700; color: var(--grey); }
+    .stats { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 16px; }
+    .stat b { display: block; font: 700 28px/1 var(--narrow); letter-spacing: -0.5px; }
+    .stat b small { font-size: 14px; margin-left: 3px; letter-spacing: 0; }
+    .stat.wide { grid-column: 1 / -1; } .stat.wide b { font-size: 48px; }
+    .stat span { display: block; font-size: 12px; color: var(--grey); margin-top: 2px; }
+    .stat span svg { vertical-align: -1px; margin-left: 4px; }
+    #dirs { margin: 12px 0 0; padding-left: 22px; font-size: 13px; }
+    #dirs li { padding: 6px 0; border-bottom: 1px solid var(--hair); cursor: pointer; }
+    #dirs li:hover { background: var(--soft); }
+    #dirs li span { display: block; font-size: 12px; color: var(--grey); } #dirs li .warn { font-weight: 700; color: var(--orange); }
+    #dirs li.ends { cursor: default; font-weight: 700; background: none; }
+    #chartBox { margin-top: 12px; }
+    details > summary { font: 700 15px var(--narrow); }
+    details[open] > summary { margin-bottom: 4px; }
+    .sources table { width: 100%; border-collapse: collapse; font-size: 12px; margin-top: 8px; }
+    .sources td { padding: 4px 0; border-bottom: 1px solid var(--hair); vertical-align: top; }
+    .sources td:first-child { font-weight: 700; padding-right: 10px; white-space: nowrap; }
+    #addStop.on { background: var(--orange); border-color: var(--orange); color: var(--paper); }
+
     /* Map */
     .leaflet-container { font: 12px Archivo, Arial, sans-serif; }
-    .leaflet-bar, .leaflet-control-layers { border: 1px solid var(--ink) !important; border-radius: 0 !important; box-shadow: none !important; }
+    .leaflet-bar { border: 1px solid var(--ink) !important; border-radius: 0 !important; box-shadow: 0 2px 10px rgba(0, 0, 0, .28) !important; }
     .leaflet-bar a { color: var(--ink) !important; border-radius: 0 !important; }
-    .leaflet-popup-content-wrapper, .leaflet-popup-tip { border-radius: 0; box-shadow: none; border: 1px solid var(--ink); }
-    .leaflet-control-attribution { color: var(--ink); }
-    .legend { background: var(--paper); padding: 8px 10px; font-size: 11px; line-height: 1.8; border: 1px solid var(--ink); }
-    .scalebar { background: rgba(255,255,255,.85); padding: 2px 6px; font-size: 11px; border: 1px solid var(--ink); }
+    .leaflet-popup-content-wrapper, .leaflet-popup-tip { border-radius: 0; box-shadow: 0 2px 10px rgba(0, 0, 0, .28); border: 1px solid var(--ink); }
+    .leaflet-popup-content { margin: 12px 14px; }
+    .leaflet-popup-content small { color: var(--grey); }
+    .scalebar { background: rgba(255, 255, 255, .88); padding: 2px 6px; font-size: 11px; border: 1px solid var(--ink); }
     .scalebar i { display: block; height: 5px; border: 2px solid var(--ink); border-top: 0; margin-bottom: 1px; }
-    table.here { border-collapse: collapse; margin: 6px 0; font-size: 12px; } table.here td { padding: 1px 10px 1px 0; }
-    .here-btns { display: flex; gap: 6px; } .here-btns button { margin: 0; padding: 5px 8px; font-size: 12px; }
-    .sym { display: inline-block; width: 14px; text-align: center; margin-right: 6px; }
-    .sym svg { vertical-align: -1px; }
+    table.here { border-collapse: collapse; margin: 6px 0 8px; font-size: 12px; } table.here td { padding: 1px 12px 1px 0; } table.here td:last-child { font-weight: 700; }
+    .here-btns { display: flex; gap: 6px; } .here-btns button { padding: 5px 9px; font-size: 12px; }
     .mk svg, .hazard svg { display: block; }
     .mk b { position: absolute; left: 15px; top: -2px; padding: 0 3px; font-size: 10px; font-weight: 700; white-space: nowrap; background: var(--paper); }
     .pin { border-radius: 50%; font: 700 10px/16px Archivo, Arial, sans-serif; text-align: center; border: 1px solid var(--ink); }
@@ -138,7 +158,6 @@
     .pin.stop { background: var(--orange); color: var(--paper); }
     .leaflet-marker-draggable.pin { cursor: grab; }
     .me { background: var(--orange); border: 3px solid var(--paper); border-radius: 50%; box-shadow: 0 0 0 2px var(--ink); }
-    /* World: sector nodes and labels */
     .node { position: relative; }
     .node .ring { position: absolute; inset: 0; border: 2px solid var(--c); border-radius: 50%; }
     .node .ring.pulse { animation: pulse 2s ease-out infinite; }
@@ -147,11 +166,11 @@
     .node .core { position: absolute; inset: 32%; background: var(--c); border: 1px solid var(--ink); }
     .node .label { position: absolute; left: calc(100% + 6px); top: 50%; transform: translateY(-50%); white-space: nowrap;
                    padding: 3px 7px; background: var(--paper); border: 1px solid var(--ink); font: 700 13px/1.1 var(--narrow); }
-    .node .label small { display: block; font: 400 11px Archivo, Arial, sans-serif; }
+    .node .label small { display: block; font: 400 11px Archivo, Arial, sans-serif; color: var(--grey); }
     .node.open { --c: var(--orange); cursor: pointer; } .node.locked { --c: var(--paper); cursor: pointer; }
-    .node.on .label { background: var(--ink); color: var(--paper); }
-    .feature { font-size: 11px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; color: rgba(255,255,255,.8);
-               white-space: nowrap; transform: translate(-50%, -50%); pointer-events: none; }
+    .node.on .label { background: var(--ink); color: var(--paper); } .node.on .label small { color: var(--paper); }
+    .feature { font-size: 11px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; color: rgba(255, 255, 255, .85);
+               text-shadow: 0 0 3px #000; white-space: nowrap; transform: translate(-50%, -50%); pointer-events: none; }
     /* 3D overlay */
     #view3d { position: fixed; inset: 0; z-index: 2000; background: #d0bdae; }
     #view3d .bar3d { position: absolute; top: 14px; left: 14px; display: flex; gap: 8px; }
@@ -199,95 +218,114 @@
       #pov .pv-ctl { gap: 6px; } #pov .pv-ctl button { padding: 8px 9px; font-size: 12px; }
     }
     @media (max-width: 760px) {
-      #readout, #crumb, #view3d .tag3d { display: none; }
+      #readout, #crumb, #find, #view3d .tag3d { display: none; }
+      .sector #stage { right: 0; bottom: 52vh; }
+      #panel { top: auto; left: 0; width: auto; height: 52vh; border-left: 0; border-top: 2px solid var(--ink); }
       #card { left: 12px; right: 12px; top: auto; bottom: 12px; transform: none; width: auto; }
-      #panel { top: auto; left: 0; right: 0; bottom: 0; width: auto; height: 52vh; }
-      #nav { left: 12px; right: 12px; width: auto; }
+      #bases button { padding: 7px 8px; }
+      #nav { bottom: 8px; padding: 6px 10px; } #nav .next b { font-size: 26px; } #nav .next span { display: inline; margin-left: 6px; }
       #view3d .hud3d { top: 60px; left: 14px; right: 14px; width: auto; }
       #hint { font-size: 11px; }
     }
   </style>
 </head>
 <body>
-  <div id="map"></div>
-
-  <div id="top" class="hud">
+  <header id="top">
     <div class="logo"><img src="logo-192.png" alt="" width="44" height="44" /><span>Arcadia<br>Pathfinder</span></div>
-    <button id="back" class="alt" hidden>World map</button>
-    <div id="crumb"><b>World map</b></div>
+    <button id="back" class="alt mini" hidden>All of Mars</button>
+    <div id="crumb"><b>Mars</b></div>
+    <select id="find" aria-label="Go to a place" hidden></select>
     <div id="cbar" hidden title="MOLA elevation colour scale, kilometres above the Mars datum (areoid)">
       <div class="cbar-head"><span>Elevation, MGS MOLA</span><span>km</span></div>
       <div id="cbarBar"><i id="cbarMark" hidden></i></div>
       <div id="cbarTicks"></div>
     </div>
     <div id="readout"></div>
-  </div>
-  <div id="hint" class="hud">Drag to explore Mars, then select a sector</div>
-  <div id="card" class="hud panel" hidden></div>
-  <div id="nav" class="hud panel" hidden></div>
+  </header>
 
-  <aside id="panel" class="hud panel" hidden>
-    <div class="scroll">
-      <div class="tag">Sector · route planner</div>
+  <div id="stage">
+    <div id="map"></div>
+    <div id="bases" class="float" role="group" aria-label="Base map"></div>
+    <div id="baseNote" class="float" hidden></div>
+    <details id="key" class="float" hidden><summary>Map key and data layers</summary><div class="rows"></div></details>
+    <div id="hint" class="float">Drag to explore Mars, then select a sector</div>
+    <div id="card" class="float" hidden></div>
+    <div id="nav" class="float" hidden></div>
+  </div>
+
+  <aside id="panel" hidden>
+    <div class="phead">
+      <div class="tag">Route planner</div>
       <h2 id="sectorName"></h2>
       <div class="note" id="sectorWhere"></div>
+    </div>
 
-      <h3>Search</h3>
-      <input id="search" list="placeList" placeholder="Site (S4, AP-1), objective (I1) or lat, lon" aria-label="Search" />
-      <datalist id="placeList"></datalist><p class="hint" id="searchHint">Right-click anywhere on the map for "What's here?".</p>
-
-      <h3><i>01</i>Start from</h3>
-      <div class="row2"><select id="start" aria-label="Start (A)"></select><button id="swap" class="alt" title="Swap start and destination">Swap</button></div>
+    <section>
+      <h3><i>1</i>Start</h3>
+      <select id="start" aria-label="Start (A)"></select>
       <p class="hint">Or click the map. Drag a pin to move it.</p>
+    </section>
 
-      <h3><i>02</i>Objective</h3>
-      <div class="tabs" role="tablist">
+    <section>
+      <h3><i>2</i>Destination <button id="swap" class="alt mini" title="Swap start and destination" hidden>Swap A and B</button></h3>
+      <div class="tabs" id="tabs" role="tablist">
         <button data-tab="ice" role="tab">Ice</button>
         <button data-tab="mineral" role="tab">Minerals</button>
         <button data-tab="sites" role="tab">Sites</button>
-        <button data-tab="pin" role="tab">Pin</button>
+        <button data-tab="pin" role="tab">Map pin</button>
       </div>
       <div id="targets"></div>
+    </section>
 
-      <div class="buttons"><button id="go">Get routes</button><button id="navGo" class="alt" hidden>Go</button><button id="navPov" class="alt" hidden title="First-person view along your route, with a head-up display">POV</button><button id="v3d" class="alt" title="3D view of the local area around your route">3D view</button></div>
+    <p id="status" hidden></p>
+
+    <section id="result" hidden>
+      <h3><i>3</i>Routes <button id="clear" class="alt mini">Clear</button></h3>
       <div id="routes"></div>
+      <div class="buttons"><button id="navGo" title="Play the route back along the map">Go</button><button id="navPov" class="alt" title="First-person view along your route, with a head-up display">POV</button><button id="v3d" class="alt" title="3D view of the land around the route">3D view</button></div>
+      <div class="tabs views" id="views" role="tablist">
+        <button data-view="summary" role="tab">Summary</button>
+        <button data-view="dirs" role="tab">Directions</button>
+        <button data-view="profile" role="tab">Profile</button>
+      </div>
+      <div id="summary"></div>
+      <div id="dirBox" hidden><ol id="dirs"></ol>
+        <p class="note">Headings are true bearings, clockwise from north. Mars has no global magnetic field, so a magnetic compass does not work there.</p></div>
+      <div id="chartBox" hidden><canvas id="profile" height="170"></canvas></div>
+    </section>
 
-      <h3><i>03</i>Route report</h3><div id="summary"><p class="note">No route yet.</p></div>
-      <section id="dirBox" hidden><h3>Step by step</h3><ol id="dirs"></ol></section>
-      <section id="chartBox" hidden><h3>Elevation profile</h3><canvas id="profile" height="150"></canvas></section>
+    <details>
+      <summary>Route options</summary>
+      <label for="max">Steepest slope allowed <output id="maxv">15°</output></label>
+      <input id="max" type="range" value="15" min="5" max="30" />
+      <div id="looseRow"><label for="loose">Avoid loose or dusty ground <output id="loosev">×2</output></label>
+      <input id="loose" type="range" value="2" min="0" max="4" step="0.5" /></div>
+      <div id="craterRow"><label for="crater">Avoid crater rims <output id="craterv">×2</output></label>
+      <input id="crater" type="range" value="2" min="0" max="4" step="0.5" /></div>
+      <p class="hint">×0 ignores the hazard; higher values take longer detours around it.</p>
+      <div class="buttons"><button id="addStop" class="alt">Add science stops</button><button id="clearStops" class="alt" hidden>Remove stops</button></div>
+    </details>
 
-      <details>
-        <summary>Route options</summary>
-        <label for="max">Steepest slope allowed <output id="maxv">15°</output></label>
-        <input id="max" type="range" value="15" min="5" max="30" />
-        <div id="looseRow"><label for="loose">Loose ground penalty <output id="loosev">×2</output></label>
-        <input id="loose" type="range" value="2" min="0" max="4" step="0.5" /></div>
-        <div id="craterRow"><label for="crater">Crater rim penalty <output id="craterv">×2</output></label>
-        <input id="crater" type="range" value="2" min="0" max="4" step="0.5" /></div>
-        <div class="buttons"><button id="addStop" class="alt">Add science stops</button><button id="clearStops" class="alt" hidden>Clear</button></div>
-      </details>
-
-      <details class="sources">
-        <summary>Data in this map</summary>
-        <table>
-          <tr><td>Topographic</td><td>MOLA elevation and slope (Mars Global Surveyor); 463 m in the sector, 15 km worldwide</td></tr>
-          <tr><td>Colour</td><td>Viking orbiter colour mosaic, MDIM 2.1 (USGS)</td></tr>
-          <tr><td>Optical</td><td>CTX mosaic and HiRISE images (Mars Reconnaissance Orbiter)</td></tr>
-          <tr><td>Thermal</td><td>TES thermal inertia (Mars Global Surveyor)</td></tr>
-          <tr><td>Spectral</td><td>TES Dust Cover Index (Mars Global Surveyor)</td></tr>
-          <tr><td>Mineral</td><td>OMEGA pyroxene map (Mars Express; Ody et al. 2012)</td></tr>
-          <tr><td>Geophysical</td><td>SWIM ice: radar, neutron, thermal, landforms (several orbiters)</td></tr>
-          <tr><td>Geologic</td><td>Robbins and Hynek crater catalog</td></tr>
-          <tr><td>Sites</td><td>HiRISE image centres; Golombek et al. 2021 (LPSC 52, abstract 2420) for AP and EM sites</td></tr>
-        </table>
-        <p class="note">No lander or rover has visited Arcadia or Amazonis, so there are no ground-level photos yet. Site popups link to HiRISE close-ups from orbit.</p>
-        <p class="note">What this map can't see: anything smaller than about 460 m (boulders, small craters, cliffs), loose sand or dust that can trap
-          a rover or tire a walker, and weather such as dust storms. Check higher-resolution imagery before travel.</p>
-        <p class="note">Elevation: <a href="https://astrogeology.usgs.gov/search/map/mars_mgs_mola_dem_463m">USGS MOLA DEM 463 m</a>. Tiles:
-          <a href="https://trek.nasa.gov/mars/">NASA Mars Trek</a>. Sites: <a href="https://www.uahirise.org">HiRISE</a>, NASA/JPL.
-          Names: <a href="https://planetarynames.wr.usgs.gov/">USGS Gazetteer of Planetary Nomenclature</a>.</p>
-      </details>
-    </div>
+    <details class="sources">
+      <summary>Data and limits</summary>
+      <table>
+        <tr><td>Topographic</td><td>MOLA elevation and slope (Mars Global Surveyor); 463 m in the sector, 15 km worldwide</td></tr>
+        <tr><td>Colour</td><td>Viking orbiter colour mosaic, MDIM 2.1 (USGS)</td></tr>
+        <tr><td>Optical</td><td>CTX mosaic (3D view) and HiRISE images (Mars Reconnaissance Orbiter)</td></tr>
+        <tr><td>Thermal</td><td>TES thermal inertia (Mars Global Surveyor)</td></tr>
+        <tr><td>Spectral</td><td>TES Dust Cover Index (Mars Global Surveyor)</td></tr>
+        <tr><td>Mineral</td><td>OMEGA pyroxene map (Mars Express; Ody et al. 2012)</td></tr>
+        <tr><td>Geophysical</td><td>SWIM ice: radar, neutron, thermal, landforms (several orbiters)</td></tr>
+        <tr><td>Geologic</td><td>Robbins and Hynek crater catalog</td></tr>
+        <tr><td>Sites</td><td>HiRISE image centres; Golombek et al. 2021 (LPSC 52, abstract 2420) for AP and EM sites</td></tr>
+      </table>
+      <p class="note">The Terrain map is drawn on this device from the MOLA height grid, so it has no missing areas and works without a connection. Colour and Elevation are pictures from NASA map servers and need a connection the first time an area is viewed.</p>
+      <p class="note">What this map can't see: anything smaller than about 460 m (boulders, small craters, cliffs), loose sand or dust that can trap
+        a rover or tire a walker, and weather such as dust storms. Check higher-resolution imagery before travel. No lander or rover has visited this region, so there are no ground-level photos.</p>
+      <p class="note">Elevation: <a href="https://astrogeology.usgs.gov/search/map/mars_mgs_mola_dem_463m">USGS MOLA DEM 463 m</a>. Tiles:
+        <a href="https://trek.nasa.gov/mars/">NASA Mars Trek</a>. Sites: <a href="https://www.uahirise.org">HiRISE</a>, NASA/JPL.
+        Names: <a href="https://planetarynames.wr.usgs.gov/">USGS Gazetteer of Planetary Nomenclature</a>.</p>
+    </details>
   </aside>
   <script type="module" src="/src/main.js"></script>
 </body>

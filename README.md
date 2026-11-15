@@ -23,36 +23,49 @@ and EM-16 (Golombek et al. 2021).
 
 ## How to plan a route
 1. On the map of Mars, click **Arcadia Planitia**, then **Enter sector**.
-2. Under **01 Start from**, pick a landing site, or click the map where you are.
-3. Under **02 Objective**, pick a tab: **Ice**, **Minerals**, **Sites**, or **Pin** (click any spot on the map).
-4. Three routes appear: **Safest**, **Balanced** and **Shortest**. Click a card to choose one, and read **Step by step**
-   for the directions and hazard warnings.
+2. Under **1 Start**, pick a landing site from the menu, or click the map where you are.
+3. Under **2 Destination**, pick a tab (**Ice**, **Minerals**, **Sites** or **Map pin**) and click a target, or click the map.
+4. Three routes appear straight away: **Safest**, **Balanced** and **Shortest**. Click a card to choose one, then read
+   **Summary**, **Directions** (with true bearings and hazard warnings) or **Profile** (heights along the route).
 5. Press **Go** to play the route back with distance left, which way to head and hazards ahead.
    Press **3D view** to see the land around the route.
    Press **POV** to travel the route in first person with a head-up display: drag, use the arrow keys (or W A S D), or on a
    phone tap **Use motion** and turn the phone, to look around. Space pauses, `[` and `]` change the playback speed,
    H switches between Hover and Eye level, C recentres, M enlarges the map, Esc goes back.
-6. Right-click anywhere for "What's here?": height, slope, ice, minerals, loose ground and crater rims at that spot.
-   **Route options** sets the steepest slope allowed and how strongly to avoid loose ground and crater rims.
+6. Right-click (or long-press) anywhere for "What's here?": height, slope, ice, minerals, loose ground and crater rims there.
+   **Go to a place** at the top jumps to any site or objective. **Route options** sets the steepest slope allowed and how
+   strongly to avoid loose ground and crater rims; the routes update when you change them.
+7. The buttons at the top left of the map switch the base map: **Colour**, **Elevation**, **Terrain**.
+   **Map key and data layers** explains the symbols and switches the ice, mineral, loose-ground and crater-rim layers on.
 
 ## Using it without internet (on Mars)
-The app keeps working offline once it has been prepared with internet. Before going offline: open the app, reload the
-page once, enter Arcadia Planitia, and pan and zoom over every area you plan to use (map pictures are saved only for areas
-you have looked at). Use the `npm run preview` version, not `npm run dev`, which does not save anything for offline use.
+Once the app has been opened with internet and the page reloaded once, it works offline: the planner, the routes, the 3D
+terrain and the **Terrain** base map are all computed on your device from the height data stored with the app, so they need
+no connection and have no missing areas. The Colour and Elevation maps are pictures from NASA servers: they are saved
+only for areas you have already looked at, so pan and zoom over those areas first if you want them offline.
+Use the `npm run preview` version, not `npm run dev`, which does not save anything for offline use.
 In Chrome or Edge you can also install it like an app (the install icon in the address bar).
 
 ## What it does
-- World hub: the whole of Mars in its own colours (Viking colour mosaic), with MOLA elevation and CTX imagery in the layer
-  menu. With elevation on, a colour bar (km, measured from the MOLA tiles by `scripts/fetch_mola_global.py`) marks the
-  cursor's height. Arcadia Planitia is open; Jezero, Gale and Oxia Planum are previews (`src/hub.js`).
+- World map: the whole of Mars in its own colours (Viking colour mosaic), with base-map buttons for MOLA elevation
+  and Terrain. With Elevation on, a colour bar (km, measured from the MOLA tiles by `scripts/fetch_mola_global.py`) marks
+  the cursor's height. Arcadia Planitia is open; Jezero, Gale and Oxia Planum are previews (`src/hub.js`).
+- Terrain base map (`src/terrain.js`): shaded relief with contour lines, drawn in the browser from the measured MOLA height
+  grids (463 m in the sector, 15 km elsewhere) for whatever zoom level is on screen. It has no missing tiles, stays sharp at
+  every zoom, and works offline. Its colour is the region's average measured from the Viking mosaic.
+- Reliable picture layers: the Viking and MOLA pictures stop at level 7 (about 325 m per pixel), so past zoom 9 they are
+  hidden and the Terrain map shows, with a note; a tile NASA's server drops is tried again twice. The Terrain map is always
+  underneath, so any gap shows real terrain.
 - Cursor readout: latitude, longitude and elevation anywhere (≈ = 15 km world grid); slope, ice score and pyroxene index in the sector.
-- Search a site (S4, AP-1), an objective (I1, M2) or coordinates ("39.8, -157.9").
-- Start from a landing site or a map click, Swap, draggable pins, and science stops (A, stops, B).
+- "Go to a place": a menu of every site and objective; choosing one flies there and shows what is measured at it.
+- Start from a landing site or a map click, Swap, draggable pins, Clear, and science stops (A, stops, B). Routes are found
+  as soon as a start and a destination are set, and again when an option changes.
 - Objectives: Ice (the 8 strongest SWIM spots, `src/targets.js`, or the nearest reachable ice from A), Minerals (the strongest
   OMEGA pyroxene detections), Sites, or a custom Pin. The Ice and Minerals tabs switch on their map layer.
 - Three alternative routes: Safest, Balanced and Shortest (still under the slope limit). Cards compare distance, climb,
   steepest slope, loose ground and crater rims; click a card or a grey line to switch.
-- Step-by-step directions ("Head east for 35.7 km") with hazard notes; click a step to zoom to it.
+- Step-by-step directions ("Head east (092°) for 35.7 km") with true bearings and hazard notes; click a step to zoom to it.
+  Mars has no global magnetic field, so bearings are from true north.
 - "What's here?": right-click for measured elevation, slope, ice score, pyroxene, loose ground and crater-rim proximity.
 - Route options: slope limit and penalty sliders for loose ground and crater rims.
 - Go: plays the selected route back in about a minute, with distance left, heading and measured hazards in the next 1 km.
@@ -66,7 +79,7 @@ In Chrome or Edge you can also install it like an app (the install icon in the a
   the next stop and to B, a compass, elevation, slope, climb left, hazards in the next 1 km, and a time estimate at an
   assumed 10 km/h (see Limitations). Hover (30 m up, heights drawn 3× taller) or Eye level (1.7 m, true scale).
   Pause and playback speed ×10 to ×1000 of the assumed speed.
-- Elevation profile, a scale bar measured on Mars, data overlays. Works offline (PWA). Shareable link: the URL hash stores
+- Elevation profile, a scale bar measured on Mars, and a collapsible map key that also switches the data layers. Works offline (PWA). Shareable link: the URL hash stores
   `startLat,startLon,endLat,endLon`.
 
 ## How routes are found
@@ -81,7 +94,7 @@ Loose ground is a 0 to 1 score from TES thermal inertia (150+ firm, 60 or lower 
 ## Developer commands
     npm install
     npm run dev      # http://localhost:5173
-    npm test         # 18 unit tests: maths, A*, hazards, targets, 3D crop, tiles, navigation, phone orientation
+    npm test         # 19 unit tests: maths, A*, hazards, targets, 3D crop, tiles, terrain map, navigation, phone orientation
     npm run build    # static site in dist/ (deploy to Vercel or GitHub Pages)
 
 ## Prepare data (one time, already done)
@@ -135,8 +148,9 @@ Longitudes are -180..180 east. Distances use Mars radius 3389.5 km.
 - POV at Eye level looks flat and blurred: heights are one sample every 463 m and the imagery is far coarser than a
   ground-level view. Motion look-around needs HTTPS (or localhost) and, on iPhone, permission from a tap.
 - Site positions are HiRISE image centres, not exact landing points. Directions are from the grid route, so headings are approximate.
-- The CTX mosaic has gaps and brightness seams, and its server sometimes repeats one tile or sends grey filler; the 3D view
-  drops those and shows coarser imagery of the right place, with the count on screen. The 2D CTX layer comes straight from the server.
+- The CTX mosaic (used in the 3D view) has gaps and brightness seams, and its server sometimes repeats one tile or sends grey
+  filler. The 3D view drops those tiles and shows coarser imagery of the right place,
+  with the count on screen.
 
 ## Coding assistant
 Claude Code, a coding assistant by Anthropic, helped write this code.
