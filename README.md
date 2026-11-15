@@ -44,7 +44,7 @@ Loose ground is a 0 to 1 score from TES thermal inertia (150+ firm, 60 or lower 
 ## Run
     npm install
     npm run dev      # http://localhost:5173
-    npm test         # unit tests: distance, slope, A*, hazards
+    npm test         # 12 unit tests: maths, A*, hazards, targets, 3D crop, tiles
     npm run build    # static site in dist/ (deploy to Vercel or GitHub Pages)
 
 ## Prepare data (one time, already done)

@@ -198,6 +198,8 @@ async function selectSector(sec) {
 }
 
 let mode = 'world';
+// Map padding that keeps fitted areas clear of the planner panel (right side on desktop, bottom half on phones)
+const padFor = () => (innerWidth < 760 ? { paddingTopLeft: [10, 10], paddingBottomRight: [10, innerHeight * 0.52 - 54] } : { paddingTopLeft: [20, 20], paddingBottomRight: [400, 20] });
 async function enterSector(animate = true) {
   await dataReady;
   if (!meta) return;
@@ -212,7 +214,7 @@ async function enterSector(animate = true) {
   $('sectorWhere').textContent = `${f(a)}°N to ${f(b)}°N, ${f(c)}°W to ${f(d)}°W · ${sec.sub.split(' ·')[0]}`;
   showSector(true);
   legend.addTo(map);
-  const box = L.latLngBounds([[a, c], [b, d]]), opt = { paddingTopLeft: [20, 70], paddingBottomRight: [400, 20] };
+  const box = L.latLngBounds([[a, c], [b, d]]), opt = padFor();
   animate ? map.flyToBounds(box, { ...opt, duration: 1.6 }) : map.fitBounds(box, opt);
   setTab(tab);
 }
@@ -493,7 +495,7 @@ function render() {
     const x = st[+li.dataset.k], seg = r.ll.slice(x.from, x.to + 1);
     stepLine?.remove();
     stepLine = L.polyline(seg, { pane: 'sectorLines', color: '#000', weight: 6, opacity: 0.7 }).addTo(map);
-    map.fitBounds(L.latLngBounds(seg).pad(0.5), { paddingBottomRight: [380, 0] });
+    map.fitBounds(L.latLngBounds(seg).pad(0.5), padFor());
   }));
   // summary
   const r10 = v => Math.round(v / 10) * 10;
@@ -538,7 +540,7 @@ function startNav() {
   const r = routes[sel];
   if (!r) return;
   const total = r.cum.at(-1);
-  map.fitBounds(L.latLngBounds(r.ll).pad(0.4), { animate: false, paddingBottomRight: [380, 0] }); // zoom to the route so the playback is visible
+  map.fitBounds(L.latLngBounds(r.ll).pad(0.4), { animate: false, ...padFor() }); // zoom to the route so the playback is visible
   nav = { me: L.marker(r.ll[0], { ...inSector, icon: icon('', 'me', 16), zIndexOffset: 2000 }).addTo(map), t0: performance.now() };
   $('navGo').textContent = 'Stop';
   $('nav').hidden = false;
