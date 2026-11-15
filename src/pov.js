@@ -12,8 +12,8 @@ const MAX_VERTS = 400000;
 const ORANGE = '#f04e23';
 // Two camera heights. Hover is drawn taller than life so the 463 m terrain grid reads as relief; Eye is true scale.
 const MODES = {
-  hover: { label: 'Hover', eye: 30, ex: 3, gap: 60, size: 18, lift: 4, tilt: 0.3, fog: [2500, 16000] },
-  eye: { label: 'Eye level', eye: 1.7, ex: 1, gap: 7, size: 2, lift: 0.3, tilt: 0.2, fog: [400, 7000] },
+  hover: { label: 'Hover', eye: 30, ex: 3, gap: 60, size: 18, lift: 4, tilt: 0.3, fog: [10000, 50000] },
+  eye: { label: 'Eye level', eye: 1.7, ex: 1, gap: 7, size: 2, lift: 0.3, tilt: 0.2, fog: [5000, 40000] },
 };
 const ARROWS = 7, AHEAD = 1200, BEACON_FAR = 12000; // arrows shown ahead; metres of route used to judge the direction of travel
 

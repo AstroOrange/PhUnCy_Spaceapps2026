@@ -626,7 +626,7 @@ $('navPov').onclick = async () => {
   const r = routes[sel];
   if (!r || pov) return;
   stopNav();
-  const local = cropGrid(h, meta, r.path, { minPad: 40 });
+  const local = cropGrid(h, meta, r.path, { minPad: 80 }); // land out to about 37 km, since the haze is thin
   const { openPOV } = await import('./pov.js');
   pov = openPOV(local.h, local.meta, local.cells, {
     cum: r.cum, ends: r.ends,
