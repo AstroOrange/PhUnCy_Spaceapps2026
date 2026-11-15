@@ -32,28 +32,27 @@ and EM-16 (Golombek et al. 2021).
 6. Right-click (or long-press) anywhere for "What's here?": height, slope, ice, minerals, loose ground and crater rims there.
    **Go to a place** at the top jumps to any site or objective. **Route options** sets the steepest slope allowed and how
    strongly to avoid loose ground and crater rims; the routes update when you change them.
-7. The buttons at the top left of the map switch the base map: **Terrain**, **Colour**, **Elevation**, **Imagery**.
+7. The buttons at the top left of the map switch the base map: **Colour**, **Elevation**, **Terrain**.
    **Map key and data layers** explains the symbols and switches the ice, mineral, loose-ground and crater-rim layers on.
 
 ## Using it without internet (on Mars)
 Once the app has been opened with internet and the page reloaded once, it works offline: the planner, the routes, the 3D
 terrain and the **Terrain** base map are all computed on your device from the height data stored with the app, so they need
-no connection and have no missing areas. The Colour, Elevation and Imagery maps are pictures from NASA servers: they are saved
+no connection and have no missing areas. The Colour and Elevation maps are pictures from NASA servers: they are saved
 only for areas you have already looked at, so pan and zoom over those areas first if you want them offline.
 Use the `npm run preview` version, not `npm run dev`, which does not save anything for offline use.
 In Chrome or Edge you can also install it like an app (the install icon in the address bar).
 
 ## What it does
-- World map: the whole of Mars in its own colours (Viking colour mosaic), with base-map buttons for Terrain, MOLA elevation
-  and CTX imagery. With Elevation on, a colour bar (km, measured from the MOLA tiles by `scripts/fetch_mola_global.py`) marks
+- World map: the whole of Mars in its own colours (Viking colour mosaic), with base-map buttons for MOLA elevation
+  and Terrain. With Elevation on, a colour bar (km, measured from the MOLA tiles by `scripts/fetch_mola_global.py`) marks
   the cursor's height. Arcadia Planitia is open; Jezero, Gale and Oxia Planum are previews (`src/hub.js`).
 - Terrain base map (`src/terrain.js`): shaded relief with contour lines, drawn in the browser from the measured MOLA height
   grids (463 m in the sector, 15 km elsewhere) for whatever zoom level is on screen. It has no missing tiles, stays sharp at
-  every zoom, works offline, and is the default inside the sector. Its colour is the region's average measured from the Viking mosaic.
+  every zoom, and works offline. Its colour is the region's average measured from the Viking mosaic.
 - Reliable picture layers: the Viking and MOLA pictures stop at level 7 (about 325 m per pixel), so past zoom 9 they are
-  hidden and the Terrain map shows, with a note; a tile NASA's server drops is tried again twice. CTX levels up to 10 are
-  complete over Arcadia and are always drawn, with the sharper levels 11 and 12 (10 m and 5 m per pixel, which have missing
-  tiles) on top where they exist; flat grey "no data" tiles are hidden. The Terrain map is always underneath, so any gap shows real terrain.
+  hidden and the Terrain map shows, with a note; a tile NASA's server drops is tried again twice. The Terrain map is always
+  underneath, so any gap shows real terrain.
 - Cursor readout: latitude, longitude and elevation anywhere (≈ = 15 km world grid); slope, ice score and pyroxene index in the sector.
 - "Go to a place": a menu of every site and objective; choosing one flies there and shows what is measured at it.
 - Start from a landing site or a map click, Swap, draggable pins, Clear, and science stops (A, stops, B). Routes are found
@@ -137,8 +136,8 @@ Longitudes are -180..180 east. Distances use Mars radius 3389.5 km.
 - No travel times: there is no measured walking or rover speed on Mars for suited astronauts, so routes report distance,
   climb, slope and hazards only.
 - Site positions are HiRISE image centres, not exact landing points. Directions are from the grid route, so headings are approximate.
-- The CTX mosaic has gaps and brightness seams, and its deepest levels have missing tiles: the map falls back to coarser CTX
-  levels and then to the Terrain map there. The 3D view drops repeated or grey tiles and shows coarser imagery of the right place,
+- The CTX mosaic (used in the 3D view) has gaps and brightness seams, and its server sometimes repeats one tile or sends grey
+  filler. The 3D view drops those tiles and shows coarser imagery of the right place,
   with the count on screen.
 
 ## Coding assistant

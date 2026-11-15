@@ -77,30 +77,11 @@ const retry = layer => layer.on('tileerror', ({ tile }) => {
 // Real colour: Viking orbiter red and violet filter images (synthetic green), USGS MDIM 2.1 colour mosaic
 const viking = retry(L.tileLayer(trek('Mars_Viking_MDIM21_ClrMosaic_global_232m'), { ...T, maxNativeZoom: 7, maxZoom: 9, attribution: 'NASA Mars Trek, USGS Viking MDIM 2.1 colour' }));
 const mola = retry(L.tileLayer(trek('Mars_MGS_MOLA_ClrShade_merge_global_463m'), { ...T, maxNativeZoom: 7, maxZoom: 9, attribution: 'NASA Mars Trek, USGS MOLA' }));
-// CTX: 512 px tiles from astro.arcgis.com, server level = map zoom - 1. Levels up to 10 are complete over Arcadia; levels 11 and 12
-// (10 m and 5 m per pixel) have missing tiles. So the complete levels are always drawn, with the sharp levels on top where they exist.
-// Flat grey "no data" tiles are hidden.
-const CTX = 'https://astro.arcgis.com/arcgis/rest/services/OnMars/CTX/MapServer/tile/{z}/{y}/{x}';
-const probe = Object.assign(document.createElement('canvas'), { width: 8, height: 8 }).getContext('2d', { willReadFrequently: true });
-const hideFlat = ({ tile }) => {
-  try {
-    probe.clearRect(0, 0, 8, 8); probe.drawImage(tile, 0, 0, 8, 8);
-    const d = probe.getImageData(0, 0, 8, 8).data;
-    let lo = 255, hi = 0;
-    for (let i = 0; i < d.length; i += 4) { lo = Math.min(lo, d[i]); hi = Math.max(hi, d[i]); }
-    if (hi - lo < 6) tile.style.visibility = 'hidden';
-  } catch { /* tile not readable: leave it */ }
-};
-const ctxOpts = { ...T, tileSize: 512, zoomOffset: -1, maxZoom: 13, attribution: 'NASA Mars Trek, CTX (Caltech)' };
-const ctxWide = L.tileLayer(CTX, { ...ctxOpts, maxNativeZoom: 11, zIndex: 1 }).on('tileload', hideFlat);
-const ctxSharp = L.tileLayer(CTX, { ...ctxOpts, minZoom: 12, zIndex: 2 }).on('tileload', hideFlat);
-
 // Base map buttons
 const BASES = {
-  terrain: { label: 'Terrain', title: 'Shaded relief and contour lines drawn from measured MOLA heights. No gaps; works offline.', layers: [], top: 13 },
   viking: { label: 'Colour', title: 'Mars in its own colours: Viking orbiter mosaic', layers: [viking], top: 9 },
   mola: { label: 'Elevation', title: 'Elevation in colour: MGS MOLA', layers: [mola], top: 9 },
-  ctx: { label: 'Imagery', title: 'Close-up photos: CTX mosaic, down to 5 m per pixel', layers: [ctxWide, ctxSharp], top: 13 },
+  terrain: { label: 'Terrain', title: 'Shaded relief and contour lines drawn from measured MOLA heights. No gaps; works offline.', layers: [], top: 13 },
 };
 let base = 'viking', molaOn = false;
 $('bases').innerHTML = Object.entries(BASES).map(([k, b]) => `<button data-base="${k}" title="${b.title}">${b.label}</button>`).join('');
@@ -267,7 +248,6 @@ async function selectSector(sec) {
   $('enter')?.addEventListener('click', () => enterSector());
 }
 
-let entered = false;
 async function enterSector(animate = true) {
   await dataReady;
   if (!meta) return;
@@ -283,8 +263,6 @@ async function enterSector(animate = true) {
   $('sectorWhere').textContent = `${f(a)}°N to ${f(b)}°N, ${f(c)}°W to ${f(d)}°W · ${Math.round(AREA(meta.bounds) / 1000)},000 km²`;
   showSector(true);
   map.invalidateSize({ animate: false });
-  if (!entered) setBase('terrain'); // the measured terrain map is the default inside a sector
-  entered = true;
   const box = L.latLngBounds([[a, c], [b, d]]);
   animate ? map.flyToBounds(box, { padding: [16, 16], duration: 1.6 }) : map.fitBounds(box, { padding: [16, 16] });
   setTab(tab);
