@@ -101,3 +101,14 @@ test('imagery tiles: repeated pictures and flat grey tiles are dropped, real nei
   const bad = badTiles([texA, texB, copyA, rampL, rampR, flat, null, dust]);
   expect([...bad].sort()).toEqual([0, 2, 5]);
 });
+
+import { shadeTile, contourStep } from '../src/terrain.js';
+test('terrain map: flat ground is one even tone, a slope facing the north-west light is brighter, no data is grey', () => {
+  const grid = f => ({ rows: 64, cols: 64, bounds: [0, 1, 0, 1], h: Float32Array.from({ length: 4096 }, (_, i) => f(i >> 6, i & 63)) });
+  const mid = px => px[(32 * 64 + 32) * 4]; // red value at the centre of a 64 px tile; tile 7/63/128 covers lat 0..1.4, lon 0..1.4
+  const flat = shadeTile(grid(() => 100), null, 7, 128, 63, 64), up = shadeTile(grid((r, c) => 100 + c * 40), null, 7, 128, 63, 64);
+  expect(mid(flat)).toBe(117); // the measured Viking colour, unshaded
+  expect(mid(up)).toBeGreaterThan(mid(flat)); // rises towards the east: faces the light
+  expect(mid(shadeTile(grid(() => NaN), null, 7, 128, 63, 64))).toBe(150);
+  expect(contourStep(12, true)).toBeLessThan(contourStep(6, true));
+});
