@@ -5,7 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta name="theme-color" content="#ffffff" />
   <link rel="preconnect" href="https://trek.nasa.gov" crossorigin />
-  <link rel="icon" href="icon.svg" />
+  <link rel="icon" href="favicon.png" />
+  <link rel="apple-touch-icon" href="logo-192.png" />
   <title>Arcadia Pathfinder</title>
   <style>
     :root { --ink: #000; --paper: #fff; --orange: #f04e23; --grey: #6b6b6b; --narrow: 'Archivo Narrow', 'Arial Narrow', sans-serif; }
@@ -20,7 +21,7 @@
     /* Header */
     #top { top: 0; left: 0; right: 0; height: 64px; display: flex; align-items: center; gap: 18px; padding: 0 20px;
            background: var(--paper); border-bottom: 4px solid var(--ink); }
-    .logo { font: 700 24px/0.95 var(--narrow); letter-spacing: -0.5px; }
+    .logo { display: flex; align-items: center; gap: 8px; font: 700 24px/0.95 var(--narrow); letter-spacing: -0.5px; }
     #crumb { font-size: 13px; } #crumb b { font-weight: 700; }
     #cbar { margin-left: auto; width: min(360px, 30vw); font-size: 10px; }
     .cbar-head { display: flex; justify-content: space-between; font-weight: 700; margin-bottom: 2px; }
@@ -171,7 +172,7 @@
   <div id="map"></div>
 
   <div id="top" class="hud">
-    <div class="logo">Arcadia<br>Pathfinder</div>
+    <div class="logo"><img src="logo-192.png" alt="" width="44" height="44" /><span>Arcadia<br>Pathfinder</span></div>
     <button id="back" class="alt" hidden>World map</button>
     <div id="crumb"><b>World map</b></div>
     <div id="cbar" hidden title="MOLA elevation colour scale, kilometres above the Mars datum (areoid)">

@@ -1,4 +1,7 @@
 # Arcadia Pathfinder: safe Marswalks on Mars (NASA Space Apps 2026)
+<img src="public/logo-192.png" alt="Arcadia Pathfinder logo" width="96" />
+
+By team PhUnCy: Jacob Athavale, Tamanna Lather, Emma Harmos, Kayla Banasco, Ewan Raine, Jonathan Ishak.
 
 A static web app, like a route planner for Mars, that finds safe routes between landing sites, science stops and
 objectives (ice, minerals) and steers around hazards. It uses only measured data from NASA missions and peer-reviewed catalogs.

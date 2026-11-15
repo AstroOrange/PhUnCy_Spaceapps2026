@@ -7,10 +7,10 @@ export default {
     manifest: {
       name: 'Arcadia Pathfinder', short_name: 'Pathfinder',
       theme_color: '#ffffff', background_color: '#ffffff', display: 'standalone',
-      icons: [{ src: 'icon.svg', sizes: 'any', type: 'image/svg+xml', purpose: 'any' }],
+      icons: [{ src: 'logo-192.png', sizes: '192x192', type: 'image/png' }, { src: 'logo-512.png', sizes: '512x512', type: 'image/png' }],
     },
     workbox: {
-      globPatterns: ['**/*.{js,css,html,json,svg,woff2}'], // the app works offline
+      globPatterns: ['**/*.{js,css,html,json,png,woff2}'], // the app works offline
       maximumFileSizeToCacheInBytes: 5e6,
       runtimeCaching: [{ // terrain grids: cached by the app's own first download, not fetched a second time up front
         urlPattern: ({ url }) => url.pathname.endsWith('.i16'),
