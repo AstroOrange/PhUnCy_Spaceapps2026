@@ -8,6 +8,7 @@ import Chart from 'chart.js/auto';
 import { haversine, cellLatLon, latLonCell, cropGrid, M_PER_DEG } from './geo.js';
 import { hazardGrids } from './hazards.js';
 import { ASSUMED_KMH, bearingDeg, compassWord, navState } from './nav.js';
+import { isTouch, motionPermission } from './motion.js';
 import { peaks } from './targets.js';
 import { SECTORS, FEATURES } from './hub.js';
 import { shadeTile, contourStep } from './terrain.js';
@@ -625,11 +626,12 @@ $('navGo').onclick = () => (nav && $('navGo').textContent === 'Stop' ? stopNav()
 $('navPov').onclick = async () => {
   const r = routes[sel];
   if (!r || pov) return;
+  const motion = isTouch() ? motionPermission() : null; // asked now, while this is still a tap (iPhones require that)
   stopNav();
   const local = cropGrid(h, meta, r.path, { minPad: 80 }); // land out to about 37 km, since the haze is thin
   const { openPOV } = await import('./pov.js');
   pov = openPOV(local.h, local.meta, local.cells, {
-    cum: r.cum, ends: r.ends,
+    cum: r.cum, ends: r.ends, motion,
     onClose: () => { pov = null; stopNav(); $('nav').hidden = true; },
     onControl: a => {
       if (!nav) return;

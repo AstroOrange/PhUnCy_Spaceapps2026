@@ -94,8 +94,16 @@ Loose ground is a 0 to 1 score from TES thermal inertia (150+ firm, 60 or lower 
 ## Developer commands
     npm install
     npm run dev      # http://localhost:5173
+    npm run dev:phone  # https on your Wi-Fi, for testing POV motion look on a phone (see below)
     npm test         # 19 unit tests: maths, A*, hazards, targets, 3D crop, tiles, terrain map, navigation, phone orientation
     npm run build    # static site in dist/ (deploy to Vercel or GitHub Pages)
+
+### Testing POV motion look on a phone
+Phones only give a page their motion sensors over https, so the plain `npm run dev` address will not turn the view when you
+turn the phone. Run `npm run dev:phone` and open the **Network** address it prints (it starts with `https://`) on a phone
+on the same Wi-Fi. The first run makes a home-made certificate with `openssl` in `.cert/` (not committed), so the phone warns
+that the connection is not private: on iPhone tap **Show Details**, then **visit this website**. Then tap **POV** and allow
+motion access when asked.
 
 ## Prepare data (one time, already done)
     python -m venv .venv && .venv\Scripts\pip install -r scripts/requirements.txt

@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { motionPermission } from './motion.js';
 
 // Look-around for POV mode: keyboard, drag, and the phone's motion sensors.
 // Headings are radians clockwise from north; the camera looks north (-z) when its rotation is zero.
@@ -47,13 +48,11 @@ export function createLook(el) {
 
   return {
     get gyroOn() { return listening; },
-    // Turn the motion sensors on. Must be called from a tap (iOS asks for permission). Resolves to 'on', 'denied' or 'none'.
-    async enableGyro() {
-      if (!window.DeviceOrientationEvent) return 'none';
-      if (typeof DeviceOrientationEvent.requestPermission === 'function') {
-        const ok = await DeviceOrientationEvent.requestPermission().catch(() => 'denied');
-        if (ok !== 'granted') return 'denied';
-      }
+    // Turn the motion sensors on. Resolves to 'on', 'denied', 'insecure' or 'none'.
+    // asked = a motionPermission() already started from a tap; without it this must itself be called from a tap.
+    async enableGyro(asked = motionPermission()) {
+      const ok = await asked;
+      if (ok !== 'granted') return ok;
       gyro = null; yaw = pitch = 0;
       addEventListener('deviceorientation', onTilt); listening = true;
       await new Promise(done => setTimeout(done, 1200));

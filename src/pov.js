@@ -3,6 +3,7 @@ import { M_PER_DEG } from './geo.js';
 import { imagery } from './view3d.js';
 import { ASSUMED_KMH, compassWord, etaSeconds, fmtDuration } from './nav.js';
 import { createLook, headingOf, wrap } from './look.js';
+import { isTouch, MOTION_HELP } from './motion.js';
 
 // POV mode: the camera is the traveller. It moves along the planned route by itself (driven by the same playback as Go);
 // the viewer only chooses where to look. There is no route line in the view: floating arrows show the way and the
@@ -19,7 +20,9 @@ const ARROWS = 7, AHEAD = 1200, BEACON_FAR = 12000; // arrows shown ahead; metre
 
 // cells = the route's [row, col] steps inside this (cropped) grid; cum = metres from the start at each step;
 // ends = step index where each leg finishes. onControl('pause' | 'faster' | 'slower') asks the playback to change.
-export function openPOV(h, meta, cells, { cum, ends, onClose, onControl }) {
+// motion = a motionPermission() promise started by the tap that opened POV (phones), so look-around by turning the
+// phone starts straight away.
+export function openPOV(h, meta, cells, { cum, ends, motion, onClose, onControl }) {
   const { rows, cols, bounds: [latMin, latMax, lonMin, lonMax] } = meta, total = cum.at(-1);
   const W = (lonMax - lonMin) * M_PER_DEG * Math.cos((latMin + latMax) * Math.PI / 360), H = (latMax - latMin) * M_PER_DEG;
   const X = c => (c + 0.5) / cols * W - W / 2, Z = r => (r + 0.5) / rows * H - H / 2; // north = -z
@@ -119,7 +122,7 @@ export function openPOV(h, meta, cells, { cum, ends, onClose, onControl }) {
     <div class="pv pv-compass"><canvas></canvas><b></b></div>
     <canvas class="pv-map" title="Route map. Click to enlarge (M)"></canvas>
     <div class="pv-edge l" hidden>&#9664; Route</div><div class="pv-edge r" hidden>Route &#9654;</div>
-    <div class="pv-warn" hidden></div>
+    <div class="pv-warn" hidden></div><div class="pv-msg" hidden></div>
     <div class="pv pv-trip"><div class="next"><b data-f="toNext"></b><span data-f="toName"></span></div>
       <div class="row"><span data-f="left"></span></div><div class="row"><span data-f="eta"></span></div></div>
     <div class="pv pv-ground"><div><b data-f="elev"></b><span>Elevation</span></div><div><b data-f="slope"></b><span>Slope here</span></div>
@@ -216,15 +219,23 @@ export function openPOV(h, meta, cells, { cum, ends, onClose, onControl }) {
     height: () => setMode(mode === 'hover' ? 'eye' : 'hover'),
     center: () => look.recenter(),
     map: () => { big = !big; mapCv.classList.toggle('big', big); sizeMap(); },
-    async gyro() {
+    async gyro(asked) {
       if (look.gyroOn) { look.disableGyro(); btn('gyro').textContent = 'Use motion'; return; }
-      const res = await look.enableGyro();
-      btn('gyro').textContent = res === 'on' ? 'Motion on' : res === 'denied' ? 'Motion blocked' : 'No motion sensor';
+      const res = await look.enableGyro(asked);
+      if (!open) return;
+      btn('gyro').textContent = res === 'on' ? 'Motion on' : 'Use motion';
+      say(res === 'on' ? 'Turn the phone to look around. Recentre makes the way you are facing straight ahead.' : MOTION_HELP[res], res === 'on' ? 5000 : 12000);
     },
   };
+  let msgTimer;
+  function say(text, ms) { // a short notice in the middle of the view
+    const el = q('.pv-msg');
+    el.textContent = text; el.hidden = false;
+    clearTimeout(msgTimer); msgTimer = setTimeout(() => (el.hidden = true), ms);
+  }
   box.querySelectorAll('[data-a]').forEach(b => (b.onclick = () => { act[b.dataset.a](); b.blur(); }));
   mapCv.onclick = act.map;
-  btn('gyro').hidden = !(window.DeviceOrientationEvent && navigator.maxTouchPoints > 0);
+  btn('gyro').hidden = !isTouch();
   const KEY = { ' ': 'pause', '[': 'slower', '-': 'slower', ']': 'faster', '=': 'faster', '+': 'faster', h: 'height', c: 'center', m: 'map' };
   const onKey = e => {
     if (e.key === 'Escape') return api.close();
@@ -295,12 +306,13 @@ export function openPOV(h, meta, cells, { cum, ends, onClose, onControl }) {
     },
     close() {
       if (!open) return;
-      open = false;
+      open = false; clearTimeout(msgTimer);
       renderer.setAnimationLoop(null); renderer.dispose(); look.dispose();
       removeEventListener('resize', resize); removeEventListener('keydown', onKey);
       box.remove(); onClose?.();
     },
   };
   q('.pv-back').onclick = api.close;
+  if (motion) act.gyro(motion);
   return api;
 }
