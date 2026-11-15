@@ -10,6 +10,34 @@ Region: Arcadia and Amazonis Planitia (37.5°N to 41°N, 171°W to 156°W, about
 shallow ice: SpaceX Starship candidate sites (S1-S9, HiRISE) and the NASA/SpaceX shortlisted sites AP-1, AP-8, AP-9, EM-15
 and EM-16 (Golombek et al. 2021).
 
+## Quick start (no coding needed)
+1. Install Node.js 22 or newer from https://nodejs.org (the "LTS" button).
+2. Download this project: on GitHub, press Code, then Download ZIP, and unzip it.
+3. Open a terminal in the unzipped folder (Windows: right-click the folder, "Open in Terminal") and run:
+
+       npm install
+       npm run build
+       npm run preview
+
+4. Open http://localhost:4173 in a web browser (Chrome, Edge, Firefox or Safari). Keep the terminal open while you use it.
+
+## How to plan a route
+1. On the map of Mars, click **Arcadia Planitia**, then **Enter sector**.
+2. Under **01 Start from**, pick a landing site, or click the map where you are.
+3. Under **02 Objective**, pick a tab: **Ice**, **Minerals**, **Sites**, or **Pin** (click any spot on the map).
+4. Three routes appear: **Safest**, **Balanced** and **Shortest**. Click a card to choose one, and read **Step by step**
+   for the directions and hazard warnings.
+5. Press **Go** to play the route back with distance left, which way to head and hazards ahead.
+   Press **3D view** to see the land around the route.
+6. Right-click anywhere for "What's here?": height, slope, ice, minerals, loose ground and crater rims at that spot.
+   **Route options** sets the steepest slope allowed and how strongly to avoid loose ground and crater rims.
+
+## Using it without internet (on Mars)
+The app keeps working offline once it has been prepared with internet. Before going offline: open the app, reload the
+page once, enter Arcadia Planitia, and pan and zoom over every area you plan to use (map pictures are saved only for areas
+you have looked at). Use the `npm run preview` version, not `npm run dev`, which does not save anything for offline use.
+In Chrome or Edge you can also install it like an app (the install icon in the address bar).
+
 ## What it does
 - World hub: the whole of Mars in its own colours (Viking colour mosaic), with MOLA elevation and CTX imagery in the layer
   menu. With elevation on, a colour bar (km, measured from the MOLA tiles by `scripts/fetch_mola_global.py`) marks the
@@ -41,7 +69,7 @@ Loose ground is a 0 to 1 score from TES thermal inertia (150+ firm, 60 or lower 
 (0.95+ low dust, 0.92 or lower dusty); these cut-offs are ours. Crater rims score 1 on the rim crest of each catalog crater
 1 km to 100 km wide, fading to 0 within a quarter of the radius (at most 2 km).
 
-## Run
+## Developer commands
     npm install
     npm run dev      # http://localhost:5173
     npm test         # 12 unit tests: maths, A*, hazards, targets, 3D crop, tiles
