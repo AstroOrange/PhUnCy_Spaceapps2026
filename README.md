@@ -1,6 +1,8 @@
 # Arcadia Pathfinder: safe Marswalks on Mars (NASA Space Apps 2026)
 <img src="public/logo-192.png" alt="Arcadia Pathfinder logo" width="96" />
 
+**[▶ Open the live app](https://arcadia-pathfinder.netlify.app/)**
+
 By team PhUnCy: Jacob Athavale, Tamanna Lather, Emma Harmos, Kayla Banasco, Ewan Raine, Jonathan Ishak (Western University).
 
 A static web app, like a route planner for Mars, that finds safe routes between landing sites, science stops and
@@ -11,6 +13,9 @@ shallow ice: SpaceX Starship candidate sites (S1-S9, HiRISE) and the NASA/SpaceX
 and EM-16 (Golombek et al. 2021).
 
 ## Quick start (no coding needed)
+Easiest: open the live app at https://arcadia-pathfinder.netlify.app/ in any web browser. No install needed.
+
+To run it on your own computer instead:
 1. Install Node.js 22 or newer from https://nodejs.org (the "LTS" button).
 2. Download this project: on GitHub, press Code, then Download ZIP, and unzip it.
 3. Open a terminal in the unzipped folder (Windows: right-click the folder, "Open in Terminal") and run:
